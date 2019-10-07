@@ -51,12 +51,12 @@ int main_print(int argc, char *argv[])
 			if (!subcnt_only && !hist_only && cnt >= min_cnt) {
 				uint64_t h[2], y[2];
 				if (k <= 32) {
-					uint64_t z = (uint64_t)i<<(k*2-l_pre) | tmp>>14;
+					uint64_t z = (uint64_t)i << (k*2 - l_pre) | tmp >> counter_bits;
 					h[0] = z >> k;
 					h[1] = z & mask;
 				} else {
-					h[0] = (uint64_t)i<<(k-l_pre) | tmp>>(14+k);
-					h[1] = (tmp>>14) & mask;
+					h[0] = (uint64_t)i << (k - l_pre) | tmp >> (counter_bits + k);
+					h[1] = tmp >> counter_bits & mask;
 				}
 				bfc_kmer_hash_inv(k, h, y);
 				printf("%s\t%d\n", bfc_kmer_2str(k, y, buf), cnt);
