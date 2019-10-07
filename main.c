@@ -35,6 +35,17 @@ void yak_opt_by_size(yak_opt_t *opt, long size)
 		opt->bf_shift = YAK_MAX_BF_SHIFT;
 }
 
+static inline int64_t mm_parse_num(const char *str)
+{
+	double x;
+	char *p;
+	x = strtod(str, &p);
+	if (*p == 'G' || *p == 'g') x *= 1e9;
+	else if (*p == 'M' || *p == 'm') x *= 1e6;
+	else if (*p == 'K' || *p == 'k') x *= 1e3;
+	return (int64_t)(x + .499);
+}
+
 static void usage_count(FILE *fp, yak_opt_t *o)
 {
 	fprintf(fp, "Usage: yak count [options] <in.fq> [in.fq]\n");
@@ -54,23 +65,19 @@ int main_count(int argc, char *argv[])
 	int c;
 
 	yak_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "k:s:b:t:H:K:v:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "k:s:b:t:H:K:v:1", 0)) >= 0) {
 		if (c == 'b') opt.bf_shift = atoi(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
 		else if (c == 'H') opt.bf_n_hashes = atoi(o.arg);
 		else if (c == 'v') yak_verbose = atoi(o.arg);
 		else if (c == 'k') opt.k = atoi(o.arg);
-		else if (c == 'K' || c == 's') {
-			double x;
-			char *p;
-			x = strtod(o.arg, &p);
-			if (*p == 'G' || *p == 'g') x *= 1e9;
-			else if (*p == 'M' || *p == 'm') x *= 1e6;
-			else if (*p == 'K' || *p == 'k') x *= 1e3;
-			if (c == 's') {
-				yak_opt_by_size(&opt, (long)x + 1);
-				fprintf(stderr, "[M::%s] applied `-k %d -b %d'\n", __func__, opt.k, opt.bf_shift);
-			} else if (c == 'K') opt.chunk_size = (long)x + 1;
+		else if (c == '1') opt.flag |= YAK_F_NO_BF;
+		else if (c == 'K') opt.chunk_size = mm_parse_num(o.arg);
+		else if (c == 's') {
+			int64_t x;
+			x = mm_parse_num(o.arg);
+			yak_opt_by_size(&opt, x + 1);
+			fprintf(stderr, "[M::%s] applied `-k %d -b %d'\n", __func__, opt.k, opt.bf_shift);
 		}
 	}
 

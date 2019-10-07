@@ -8,7 +8,10 @@
 #define YAK_MAX_KMER     63
 #define YAK_MAX_BF_SHIFT 38
 
+#define YAK_F_NO_BF     0x1
+
 typedef struct {
+	uint32_t flag;
 	int32_t bf_shift, bf_n_hashes;
 	int32_t k;
 	int32_t b_pre;

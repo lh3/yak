@@ -59,7 +59,7 @@ static void bfc_kmer_insert(cnt_shared_t *cs, const bfc_kmer_t *x, int tid)
 	int k = cs->opt->k, ret;
 	uint64_t y[2], hash;
 	hash = bfc_kmer_hash(k, x->x, y);
-	ret = bfc_bf_insert(cs->bf, hash);
+	ret = cs->bf? bfc_bf_insert(cs->bf, hash) : cs->opt->bf_n_hashes;
 	if (ret == cs->opt->bf_n_hashes) {
 		if (cs->ch && bfc_ch_insert(cs->ch, y, 0) < 0) { // counting with a hash table
 			insbuf_t *p;
@@ -126,7 +126,7 @@ bfc_ch_t *bfc_count(const char *fn, const yak_opt_t *opt)
 	int i;
 	memset(&cs, 0, sizeof(cnt_shared_t));
 	cs.opt = opt;
-	cs.bf = bfc_bf_init(opt->bf_shift, opt->bf_n_hashes);
+	cs.bf = opt->flag&YAK_F_NO_BF? 0 : bfc_bf_init(opt->bf_shift, opt->bf_n_hashes);
 	cs.ch = bfc_ch_init(opt->k, opt->b_pre);
 	cs.n_buf = calloc(opt->n_threads, sizeof(int));
 	cs.buf = calloc(opt->n_threads, sizeof(void*));
