@@ -49,9 +49,10 @@ void bseq_close(bseq_file_t *fp)
 	free(fp);
 }
 
-bseq1_t *bseq_read(bseq_file_t *fp, int chunk_size, int keep_comment, int *n_)
+bseq1_t *bseq_read(bseq_file_t *fp, int64_t chunk_size, int keep_comment, int *n_)
 {
-	int size = 0, m, n;
+	int m, n;
+	int64_t size = 0;
 	bseq1_t *seqs;
 	kseq_t *ks = fp->ks;
 	m = n = 0; seqs = 0;

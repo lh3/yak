@@ -50,11 +50,14 @@ static void usage_count(FILE *fp, yak_opt_t *o)
 {
 	fprintf(fp, "Usage: yak count [options] <in.fq> [in.fq]\n");
 	fprintf(fp, "Options:\n");
-	fprintf(fp, "  -s FLOAT     approx genome size (k/m/g allowed; change -k and -b) [unset]\n");
+	fprintf(fp, "  -s NUM       approx genome size (k/m/g allowed; change -k and -b) [unset]\n");
 	fprintf(fp, "  -k INT       k-mer length [%d]\n", o->k);
 	fprintf(fp, "  -t INT       number of threads [%d]\n", o->n_threads);
 	fprintf(fp, "  -b INT       set Bloom filter size to pow(2,INT) bits [%d]\n", o->bf_shift);
 	fprintf(fp, "  -H INT       use INT hash functions for Bloom filter [%d]\n", o->bf_n_hashes);
+	fprintf(fp, "  -o FILE      write counts to FILE []\n");
+	fprintf(fp, "  -1           count singletons\n");
+	fprintf(fp, "  -K NUM       batch size [%ld]\n", (long)o->chunk_size);
 }
 
 int main_count(int argc, char *argv[])
@@ -62,10 +65,11 @@ int main_count(int argc, char *argv[])
 	yak_opt_t opt;
 	bfc_ch_t *ch = 0;
 	ketopt_t o = KETOPT_INIT;
+	char *out_fn = 0;
 	int c;
 
 	yak_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "k:s:b:t:H:K:v:1", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "k:s:b:t:H:K:v:1o:", 0)) >= 0) {
 		if (c == 'b') opt.bf_shift = atoi(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
 		else if (c == 'H') opt.bf_n_hashes = atoi(o.arg);
@@ -73,6 +77,7 @@ int main_count(int argc, char *argv[])
 		else if (c == 'k') opt.k = atoi(o.arg);
 		else if (c == '1') opt.flag |= YAK_F_NO_BF;
 		else if (c == 'K') opt.chunk_size = mm_parse_num(o.arg);
+		else if (c == 'o') out_fn = o.arg;
 		else if (c == 's') {
 			int64_t x;
 			x = mm_parse_num(o.arg);
@@ -87,6 +92,7 @@ int main_count(int argc, char *argv[])
 	}
 
 	ch = (bfc_ch_t*)bfc_count(argv[o.ind], &opt);
+	if (out_fn) bfc_ch_dump(ch, out_fn);
 	bfc_ch_destroy(ch);
 	return 0;
 }

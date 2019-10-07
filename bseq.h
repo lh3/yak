@@ -16,6 +16,6 @@ extern unsigned char seq_nt6_table[256];
 
 bseq_file_t *bseq_open(const char *fn);
 void bseq_close(bseq_file_t *fp);
-bseq1_t *bseq_read(bseq_file_t *fp, int chunk_size, int keep_comment, int *n_);
+bseq1_t *bseq_read(bseq_file_t *fp, int64_t chunk_size, int keep_comment, int *n_);
 
 #endif
