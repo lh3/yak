@@ -76,7 +76,7 @@ int bfc_ch_insert(bfc_ch_t *ch, const uint64_t x[2], int forced)
 	if (absent) {
 		kh_key(h, k) |= 1;
 	} else {
-		if ((kh_key(h, k) & YAK_MAX_COUNT) == YAK_MAX_COUNT) ++kh_key(h, k);
+		if ((kh_key(h, k) & YAK_MAX_COUNT) != YAK_MAX_COUNT) ++kh_key(h, k);
 	}
 	__sync_lock_release(&h->lock); // unlock
 	return 0;
