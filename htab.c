@@ -45,14 +45,16 @@ void bfc_ch_destroy(bfc_ch_t *ch)
 
 static inline cnthash_t *get_subhash(const bfc_ch_t *ch, const uint64_t x[2], uint64_t *key)
 {
-	if (ch->k < 32) {
+	if (ch->k <= 32) {
 		int t = ch->k * 2 - ch->b_pre;
 		uint64_t z = x[0] << ch->k | x[1];
 		*key = (z & ((1ULL<<t) - 1)) << YAK_COUNTER_BITS;
 		return ch->h[z>>t];
 	} else {
+		int max_key_bits = 64 - YAK_COUNTER_BITS;
 		int t = ch->k - ch->b_pre;
-		*key = ((x[0] & ((1ULL<<t) - 1)) << ch->k ^ x[1]) << YAK_COUNTER_BITS;
+		int shift = t + ch->k < max_key_bits? ch->k : max_key_bits - t;
+		*key = ((x[0] & ((1ULL<<t) - 1)) << shift ^ x[1]) << YAK_COUNTER_BITS;
 		return ch->h[x[0]>>t];
 	}
 }
@@ -128,11 +130,11 @@ int bfc_ch_hist(const bfc_ch_t *ch, uint64_t cnt[256], uint64_t high[64])
 int bfc_ch_dump(const bfc_ch_t *ch, const char *fn)
 {
 	FILE *fp;
-	uint32_t t[2];
+	uint32_t t[3];
 	int i;
 	if ((fp = strcmp(fn, "-")? fopen(fn, "wb") : stdout) == 0) return -1;
-	t[0] = ch->k, t[1] = ch->b_pre;
-	fwrite(t, 4, 2, fp);
+	t[0] = ch->k, t[1] = ch->b_pre, t[2] = YAK_COUNTER_BITS;
+	fwrite(t, 4, 3, fp);
 	for (i = 0; i < 1<<ch->b_pre; ++i) {
 		cnthash_t *h = ch->h[i];
 		khint_t k;
@@ -150,12 +152,17 @@ int bfc_ch_dump(const bfc_ch_t *ch, const char *fn)
 bfc_ch_t *bfc_ch_restore(const char *fn)
 {
 	FILE *fp;
-	uint32_t t[2];
+	uint32_t t[3];
 	int i, j, absent;
 	bfc_ch_t *ch;
 
 	if ((fp = fopen(fn, "rb")) == 0) return 0;
-	fread(t, 4, 2, fp);
+	fread(t, 4, 3, fp);
+	if (t[2] != YAK_COUNTER_BITS) {
+		fprintf(stderr, "ERROR: saved counter bits: %d; compile-time counter bits: %d\n", t[2], YAK_COUNTER_BITS);
+		fclose(fp);
+		return 0;
+	}
 	ch = bfc_ch_init(t[0], t[1]);
 	assert((int)t[1] == ch->b_pre);
 	for (i = 0; i < 1<<ch->b_pre; ++i) {

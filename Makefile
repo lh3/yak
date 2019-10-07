@@ -13,7 +13,7 @@ LIBS=		-lm -lz -lpthread
 
 all:$(PROG)
 
-yak:$(OBJS) main.o
+yak:$(OBJS) main.o printcnt.o
 		$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 
 clean:
@@ -30,4 +30,5 @@ count.o: kthread.h yak.h bbf.h kmer.h bseq.h sys.h
 htab.o: yak.h kmer.h khash.h
 kthread.o: kthread.h
 main.o: ketopt.h yak.h sys.h
+printcnt.o: kmer.h ketopt.h yak.h
 sys.o: sys.h

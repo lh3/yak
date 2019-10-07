@@ -126,7 +126,7 @@ bfc_ch_t *bfc_count(const char *fn, const yak_opt_t *opt)
 	int i;
 	memset(&cs, 0, sizeof(cnt_shared_t));
 	cs.opt = opt;
-	cs.bf = opt->flag&YAK_F_NO_BF? 0 : bfc_bf_init(opt->bf_shift, opt->bf_n_hashes);
+	cs.bf = opt->bf_shift <= 0? 0 : bfc_bf_init(opt->bf_shift, opt->bf_n_hashes);
 	cs.ch = bfc_ch_init(opt->k, opt->b_pre);
 	cs.n_buf = calloc(opt->n_threads, sizeof(int));
 	cs.buf = calloc(opt->n_threads, sizeof(void*));

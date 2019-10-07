@@ -17,22 +17,9 @@ void yak_opt_init(yak_opt_t *opt)
 	opt->chunk_size = 100000000;
 	opt->k = 31;
 	opt->b_pre = 20;
-	opt->bf_shift = 33;
+	opt->bf_shift = 0;
 	opt->bf_n_hashes = 4;
 	opt->n_threads = 4;
-}
-
-void yak_opt_by_size(yak_opt_t *opt, long size)
-{
-	double bits;
-	bits = log(size) / log(2);
-	opt->k = (int)(bits + 1.);
-	if ((opt->k&1) == 0) ++opt->k; // should always be an odd number
-	if (opt->k > YAK_MAX_KMER)
-		opt->k = YAK_MAX_KMER;
-	opt->bf_shift = (int)(bits + 8.);
-	if (opt->bf_shift > YAK_MAX_BF_SHIFT)
-		opt->bf_shift = YAK_MAX_BF_SHIFT;
 }
 
 static inline int64_t mm_parse_num(const char *str)
@@ -50,14 +37,14 @@ static void usage_count(FILE *fp, yak_opt_t *o)
 {
 	fprintf(fp, "Usage: yak count [options] <in.fq> [in.fq]\n");
 	fprintf(fp, "Options:\n");
-	fprintf(fp, "  -s NUM       approx genome size (k/m/g allowed; change -k and -b) [unset]\n");
+	fprintf(fp, "  -p INT       prefix length [%d]\n", o->b_pre);
 	fprintf(fp, "  -k INT       k-mer length [%d]\n", o->k);
-	fprintf(fp, "  -t INT       number of threads [%d]\n", o->n_threads);
-	fprintf(fp, "  -b INT       set Bloom filter size to pow(2,INT) bits [%d]\n", o->bf_shift);
+	fprintf(fp, "  -b INT       set Bloom filter size to 2**INT bits; 0 to disable [%d]\n", o->bf_shift);
 	fprintf(fp, "  -H INT       use INT hash functions for Bloom filter [%d]\n", o->bf_n_hashes);
+	fprintf(fp, "  -t INT       number of threads [%d]\n", o->n_threads);
 	fprintf(fp, "  -o FILE      write counts to FILE []\n");
-	fprintf(fp, "  -1           count singletons\n");
 	fprintf(fp, "  -K NUM       batch size [%ld]\n", (long)o->chunk_size);
+	fprintf(fp, "Note: -b37 is recommended for human reads\n");
 }
 
 int main_count(int argc, char *argv[])
@@ -69,27 +56,23 @@ int main_count(int argc, char *argv[])
 	int c;
 
 	yak_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "k:s:b:t:H:K:v:1o:", 0)) >= 0) {
-		if (c == 'b') opt.bf_shift = atoi(o.arg);
-		else if (c == 't') opt.n_threads = atoi(o.arg);
-		else if (c == 'H') opt.bf_n_hashes = atoi(o.arg);
-		else if (c == 'v') yak_verbose = atoi(o.arg);
+	while ((c = ketopt(&o, argc, argv, 1, "k:b:t:H:K:v:o:p:", 0)) >= 0) {
+		if (c == 'p') opt.b_pre = atoi(o.arg);
 		else if (c == 'k') opt.k = atoi(o.arg);
-		else if (c == '1') opt.flag |= YAK_F_NO_BF;
+		else if (c == 'b') opt.bf_shift = atoi(o.arg);
+		else if (c == 'H') opt.bf_n_hashes = atoi(o.arg);
+		else if (c == 't') opt.n_threads = atoi(o.arg);
+		else if (c == 'v') yak_verbose = atoi(o.arg);
 		else if (c == 'K') opt.chunk_size = mm_parse_num(o.arg);
 		else if (c == 'o') out_fn = o.arg;
-		else if (c == 's') {
-			int64_t x;
-			x = mm_parse_num(o.arg);
-			yak_opt_by_size(&opt, x + 1);
-			fprintf(stderr, "[M::%s] applied `-k %d -b %d'\n", __func__, opt.k, opt.bf_shift);
-		}
 	}
 
 	if (o.ind == argc) {
 		usage_count(stderr, &opt);
 		return 1;
 	}
+	if (opt.b_pre + 64 < 2 * opt.k + YAK_COUNTER_BITS)
+		fprintf(stderr, "Warning: counting hashes instead. Please increase -p or reduce -k.\n");
 
 	ch = (bfc_ch_t*)bfc_count(argv[o.ind], &opt);
 	if (out_fn) bfc_ch_dump(ch, out_fn);
@@ -99,15 +82,18 @@ int main_count(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+	extern int main_print(int argc, char *argv[]);
 	int ret = 0, i;
 	yak_reset_realtime();
 	if (argc == 1) {
 		fprintf(stderr, "Usage: yak <command> <argument>\n");
 		fprintf(stderr, "Command:\n");
 		fprintf(stderr, "  count     count k-mers\n");
+		fprintf(stderr, "  print     print dumped k-mer counts or hash history\n");
 		return 1;
 	}
 	if (strcmp(argv[1], "count") == 0) ret = main_count(argc-1, argv+1);
+	else if (strcmp(argv[1], "print") == 0) ret = main_print(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[E::%s] unknown command\n", __func__);
 		return 1;
