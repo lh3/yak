@@ -28,3 +28,14 @@ double yak_realtime(void)
 {
 	return yak_realtime_core() - yak_realtime0;
 }
+
+long yak_peakrss(void)
+{
+	struct rusage r;
+	getrusage(RUSAGE_SELF, &r);
+#ifdef __linux__
+	return r.ru_maxrss * 1024;
+#else
+	return r.ru_maxrss;
+#endif
+}

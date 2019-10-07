@@ -9,8 +9,6 @@
 #include "yak.h"
 #include "sys.h"
 
-#define BFC_VERSION "r181"
-
 int yak_verbose = 3;
 
 void yak_opt_init(yak_opt_t *opt)
@@ -37,9 +35,9 @@ void yak_opt_by_size(yak_opt_t *opt, long size)
 		opt->bf_shift = YAK_MAX_BF_SHIFT;
 }
 
-static void usage(FILE *fp, yak_opt_t *o)
+static void usage_count(FILE *fp, yak_opt_t *o)
 {
-	fprintf(fp, "Usage: yak [options] <in.fq> [in.fq]\n");
+	fprintf(fp, "Usage: yak count [options] <in.fq> [in.fq]\n");
 	fprintf(fp, "Options:\n");
 	fprintf(fp, "  -s FLOAT     approx genome size (k/m/g allowed; change -k and -b) [unset]\n");
 	fprintf(fp, "  -k INT       k-mer length [%d]\n", o->k);
@@ -48,14 +46,13 @@ static void usage(FILE *fp, yak_opt_t *o)
 	fprintf(fp, "  -H INT       use INT hash functions for Bloom filter [%d]\n", o->bf_n_hashes);
 }
 
-int main(int argc, char *argv[])
+int main_count(int argc, char *argv[])
 {
 	yak_opt_t opt;
 	bfc_ch_t *ch = 0;
 	ketopt_t o = KETOPT_INIT;
-	int i, c;
+	int c;
 
-	yak_reset_realtime();
 	yak_opt_init(&opt);
 	while ((c = ketopt(&o, argc, argv, 1, "k:s:b:t:H:K:v:", 0)) >= 0) {
 		if (c == 'b') opt.bf_shift = atoi(o.arg);
@@ -78,17 +75,36 @@ int main(int argc, char *argv[])
 	}
 
 	if (o.ind == argc) {
-		usage(stderr, &opt);
+		usage_count(stderr, &opt);
 		return 1;
 	}
 
 	ch = (bfc_ch_t*)bfc_count(argv[o.ind], &opt);
 	bfc_ch_destroy(ch);
-
-	fprintf(stderr, "[M::%s] Version: %s\n", __func__, BFC_VERSION);
-	fprintf(stderr, "[M::%s] CMD:", __func__);
-	for (i = 0; i < argc; ++i)
-		fprintf(stderr, " %s", argv[i]);
-	fprintf(stderr, "\n[M::%s] Real time: %.3f sec; CPU: %.3f sec\n", __func__, yak_realtime(), yak_cputime());
 	return 0;
+}
+
+int main(int argc, char *argv[])
+{
+	int ret = 0, i;
+	yak_reset_realtime();
+	if (argc == 1) {
+		fprintf(stderr, "Usage: yak <command> <argument>\n");
+		fprintf(stderr, "Command:\n");
+		fprintf(stderr, "  count     count k-mers\n");
+		return 1;
+	}
+	if (strcmp(argv[1], "count") == 0) ret = main_count(argc-1, argv+1);
+	else {
+		fprintf(stderr, "[E::%s] unknown command\n", __func__);
+		return 1;
+	}
+	if (ret == 0) {
+		fprintf(stderr, "[M::%s] Version: %s\n", __func__, YAK_VERSION);
+		fprintf(stderr, "[M::%s] CMD:", __func__);
+		for (i = 0; i < argc; ++i)
+			fprintf(stderr, " %s", argv[i]);
+		fprintf(stderr, "\n[M::%s] Real time: %.3f sec; CPU: %.3f sec; Peak RSS: %.3f GB\n", __func__, yak_realtime(), yak_cputime(), yak_peakrss() / 1024.0 / 1024.0 / 1024.0);
+	}
+	return ret;
 }
