@@ -76,7 +76,7 @@ static void worker_qv(void *_data, long k, int tid)
 			if (non0 > 0) {
 				if (tot > non0) {
 					qv = log((double)tot / non0) / qs->k;
-					qv = 4.3429448190325175 * log(qv);
+					qv = -4.3429448190325175 * log(qv);
 				} else qv = 99.0;
 			} else qv = 0.0;
 		}
