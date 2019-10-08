@@ -130,33 +130,36 @@ void bfc_ch_reset(bfc_ch_t *ch)
 int64_t bfc_ch_del2(bfc_ch_t *ch)
 {
 	int i;
-	int64_t c = 0;
+	int64_t del = 0, cnt = 0;
 	for (i = 0; i < 1<<ch->b_pre; ++i) {
 		cnthash_t *h = ch->h[i];
 		khint_t k;
+		cnt += kh_size(h);
 		for (k = 0; k != kh_end(h); ++k)
 			if (kh_exist(h, k) && (kh_key(h, k) & YAK_MAX_COUNT) < 2) {
 				kh_del(cnt, h, k);
-				++c;
+				++del;
 			}
 	}
-	return c;
+	if (yak_verbose >= 3)
+		fprintf(stderr, "[M] false positive rate: %ld / %ld = %.3f%%\n",
+				(long)del, (long)cnt, 100.0 * del / cnt);
+	return del;
 }
 /*
-int bfc_ch_hist(const bfc_ch_t *ch, uint64_t cnt[256], uint64_t high[64])
+int bfc_ch_hist(const bfc_ch_t *ch, uint64_t cnt[1<<YAK_COUNTER_BITS])
 {
 	int i, max_i = -1;
 	uint64_t max;
-	memset(cnt, 0, 256 * 8);
-	memset(high, 0, 64 * 8);
+	memset(cnt, 0, (1<<YAK_COUNTER_BITS) * 8);
 	for (i = 0; i < 1<<ch->b_pre; ++i) {
 		khint_t k;
 		cnthash_t *h = ch->h[i];
 		for (k = 0; k != kh_end(h); ++k)
 			if (kh_exist(h, k))
-				++cnt[kh_key(h, k) & 0xff], ++high[kh_key(h, k)>>8 & 0x3f];
+				++cnt[kh_key(h, k) & YAK_MAX_COUNT];
 	}
-	for (i = 3, max = 0; i < 256; ++i)
+	for (i = 3, max = 0; i <= YAK_MAX_COUNT; ++i)
 		if (cnt[i] > max)
 			max = cnt[i], max_i = i;
 	return max_i;

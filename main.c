@@ -9,8 +9,6 @@
 #include "yak.h"
 #include "sys.h"
 
-int yak_verbose = 3;
-
 void yak_opt_init(yak_opt_t *opt)
 {
 	memset(opt, 0, sizeof(yak_opt_t));

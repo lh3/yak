@@ -2,6 +2,8 @@
 #include <sys/time.h>
 #include "sys.h"
 
+int yak_verbose = 3;
+
 static double yak_realtime0;
 
 double yak_cputime(void)

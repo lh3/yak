@@ -1,7 +1,7 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAK_VERSION "r1"
+#define YAK_VERSION "r9"
 
 #include <stdint.h>
 
@@ -16,6 +16,8 @@ typedef struct {
 } yak_opt_t;
 
 #define YAK_COUNTER_BITS 8
+
+extern int yak_verbose;
 
 struct bfc_ch_s;
 typedef struct bfc_ch_s bfc_ch_t;
