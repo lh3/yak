@@ -35,8 +35,8 @@ typedef struct {
 static int qv_count(qv_shared_t *qs, const bfc_kmer_t *x)
 {
 	int c;
-	uint64_t y[2], hash;
-	hash = bfc_kmer_hash(qs->k, x->x, y);
+	uint64_t y[2];
+	bfc_kmer_hash(qs->k, x->x, y);
 	c = bfc_ch_get(qs->ch, y);
 	return c > 0? c : 0;
 }
