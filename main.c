@@ -82,6 +82,43 @@ int main_count(int argc, char *argv[])
 	return 0;
 }
 
+int main_qv(int argc, char *argv[])
+{
+	bfc_ch_t *ch = 0;
+	ketopt_t o = KETOPT_INIT;
+	int64_t cnt[1<<YAK_COUNTER_BITS], chunk_size = 1000000000, tot, acc;
+	int c, i, n_threads = 4, kmer;
+
+	while ((c = ketopt(&o, argc, argv, 1, "K:t:", 0)) >= 0) {
+		if (c == 'K') chunk_size = mm_parse_num(o.arg);
+		else if (c == 't') n_threads = atoi(o.arg);
+	}
+	if (argc - o.ind < 2) {
+		fprintf(stderr, "Usage: yak qv [options] <kmer.hash> <seq.fa>\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -t INT      number of threads [%d]\n", n_threads);
+		fprintf(stderr, "  -K NUM      batch size [1g]\n");
+		return 1;
+	}
+
+	ch = bfc_ch_restore(argv[o.ind]);
+	assert(ch);
+	kmer = bfc_ch_get_k(ch);
+	yak_qv(argv[o.ind+1], ch, chunk_size, n_threads, cnt);
+	for (i = 0, tot = 0; i < 1<<YAK_COUNTER_BITS; ++i)
+		tot += cnt[i];
+	for (i = (1<<YAK_COUNTER_BITS) - 1, acc = 0; i >= 1; --i) {
+		double x;
+		acc += cnt[i];
+		x = log((double)tot / acc) / kmer;
+		x = -10.0 * log(x) / log(10);
+		printf("%d\t%ld\t%.3f\n", i, (long)cnt[i], x);
+	}
+	printf("0\t%ld\t0\n", (long)cnt[0]);
+	bfc_ch_destroy(ch);
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	extern int main_print(int argc, char *argv[]);
@@ -91,10 +128,12 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Usage: yak <command> <argument>\n");
 		fprintf(stderr, "Command:\n");
 		fprintf(stderr, "  count     count k-mers\n");
+		fprintf(stderr, "  qv        quality values\n");
 		fprintf(stderr, "  print     print dumped k-mer counts or hash history\n");
 		return 1;
 	}
 	if (strcmp(argv[1], "count") == 0) ret = main_count(argc-1, argv+1);
+	else if (strcmp(argv[1], "qv") == 0) ret = main_qv(argc-1, argv+1);
 	else if (strcmp(argv[1], "print") == 0) ret = main_print(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[E::%s] unknown command\n", __func__);

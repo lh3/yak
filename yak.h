@@ -1,7 +1,7 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAK_VERSION "r10"
+#define YAK_VERSION "r11"
 
 #include <stdint.h>
 
@@ -37,5 +37,6 @@ int bfc_ch_get_k(const bfc_ch_t *ch);
 int bfc_ch_kmer_occ(const bfc_ch_t *ch, const uint64_t z[2]);
 
 bfc_ch_t *bfc_count(const char *fn, const yak_opt_t *opt, bfc_ch_t *ch0);
+void yak_qv(const char *fn, const bfc_ch_t *ch, int64_t chunk_size, int n_threads, int64_t *cnt);
 
 #endif

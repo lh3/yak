@@ -106,7 +106,7 @@ static void *bfc_count_cb(void *shared, int step, void *_data)
 		kt_for(cs->opt->n_threads, worker_count, data, data->n_seqs);
 		rt = yak_realtime();
 		eff = yak_cputime() / (rt + 1e-6);
-		fprintf(stderr, "[M::%s@%.2f*%.2f] processed %d sequences; # distinct k-mers: %ld\n",
+		fprintf(stderr, "[M::%s@%.2f*%.2f] processed %d sequences; # keys in the hash table: %ld\n",
 				__func__, rt, eff, data->n_seqs, (long)bfc_ch_count(cs->ch));
 		for (i = 0; i < cs->opt->n_threads; ++i)
 			bfc_kmer_bufclear(cs, 1, i);
