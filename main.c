@@ -9,17 +9,6 @@
 #include "yak.h"
 #include "sys.h"
 
-void yak_opt_init(yak_opt_t *opt)
-{
-	memset(opt, 0, sizeof(yak_opt_t));
-	opt->chunk_size = 100000000;
-	opt->k = 31;
-	opt->b_pre = 20;
-	opt->bf_shift = 0;
-	opt->bf_n_hashes = 4;
-	opt->n_threads = 4;
-}
-
 static inline int64_t mm_parse_num(const char *str)
 {
 	double x;
@@ -31,7 +20,7 @@ static inline int64_t mm_parse_num(const char *str)
 	return (int64_t)(x + .499);
 }
 
-static void usage_count(FILE *fp, yak_opt_t *o)
+static void usage_count(FILE *fp, yak_copt_t *o)
 {
 	fprintf(fp, "Usage: yak count [options] <in.fq> [in.fq]\n");
 	fprintf(fp, "Options:\n");
@@ -47,13 +36,13 @@ static void usage_count(FILE *fp, yak_opt_t *o)
 
 int main_count(int argc, char *argv[])
 {
-	yak_opt_t opt;
+	yak_copt_t opt;
 	bfc_ch_t *ch = 0;
 	ketopt_t o = KETOPT_INIT;
 	char *out_fn = 0;
 	int c;
 
-	yak_opt_init(&opt);
+	yak_copt_init(&opt);
 	while ((c = ketopt(&o, argc, argv, 1, "k:b:t:H:K:v:o:p:", 0)) >= 0) {
 		if (c == 'p') opt.b_pre = atoi(o.arg);
 		else if (c == 'k') opt.k = atoi(o.arg);
@@ -84,19 +73,27 @@ int main_count(int argc, char *argv[])
 
 int main_qv(int argc, char *argv[])
 {
+	yak_qopt_t opt;
 	bfc_ch_t *ch = 0;
 	ketopt_t o = KETOPT_INIT;
-	int64_t cnt[1<<YAK_COUNTER_BITS], chunk_size = 1000000000, tot, acc;
-	int c, i, n_threads = 4, kmer;
+	int64_t cnt[1<<YAK_COUNTER_BITS], tot, acc;
+	int c, i, kmer;
 
-	while ((c = ketopt(&o, argc, argv, 1, "K:t:", 0)) >= 0) {
-		if (c == 'K') chunk_size = mm_parse_num(o.arg);
-		else if (c == 't') n_threads = atoi(o.arg);
+	yak_qopt_init(&opt);
+	while ((c = ketopt(&o, argc, argv, 1, "K:t:l:f:p", 0)) >= 0) {
+		if (c == 'K') opt.chunk_size = mm_parse_num(o.arg);
+		else if (c == 'l') opt.min_len = mm_parse_num(o.arg);
+		else if (c == 'f') opt.min_frac = atof(o.arg);
+		else if (c == 't') opt.n_threads = atoi(o.arg);
+		else if (c == 'p') opt.print_each = 1;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: yak qv [options] <kmer.hash> <seq.fa>\n");
 		fprintf(stderr, "Options:\n");
-		fprintf(stderr, "  -t INT      number of threads [%d]\n", n_threads);
+		fprintf(stderr, "  -l NUM      min sequence length [%d]\n", opt.min_len);
+		fprintf(stderr, "  -f FLOAT    min k-mer fraction [%g]\n", opt.min_frac);
+		fprintf(stderr, "  -p          print QV for each sequence\n");
+		fprintf(stderr, "  -t INT      number of threads [%d]\n", opt.n_threads);
 		fprintf(stderr, "  -K NUM      batch size [1g]\n");
 		return 1;
 	}
@@ -104,7 +101,7 @@ int main_qv(int argc, char *argv[])
 	ch = bfc_ch_restore(argv[o.ind]);
 	assert(ch);
 	kmer = bfc_ch_get_k(ch);
-	yak_qv(argv[o.ind+1], ch, chunk_size, n_threads, cnt);
+	yak_qv(&opt, argv[o.ind+1], ch, cnt);
 	for (i = 0, tot = 0; i < 1<<YAK_COUNTER_BITS; ++i)
 		tot += cnt[i];
 	for (i = (1<<YAK_COUNTER_BITS) - 1, acc = 0; i >= 1; --i) {
@@ -112,9 +109,9 @@ int main_qv(int argc, char *argv[])
 		acc += cnt[i];
 		x = log((double)tot / acc) / kmer;
 		x = -10.0 * log(x) / log(10);
-		printf("%d\t%ld\t%.3f\n", i, (long)cnt[i], x);
+		printf("Q\t%d\t%ld\t%.3f\n", i, (long)cnt[i], x);
 	}
-	printf("0\t%ld\t0\n", (long)cnt[0]);
+	printf("Q\t0\t%ld\t0\n", (long)cnt[0]);
 	bfc_ch_destroy(ch);
 	return 0;
 }
@@ -128,8 +125,8 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Usage: yak <command> <argument>\n");
 		fprintf(stderr, "Command:\n");
 		fprintf(stderr, "  count     count k-mers\n");
-		fprintf(stderr, "  qv        quality values\n");
-		fprintf(stderr, "  print     print dumped k-mer counts or hash history\n");
+		fprintf(stderr, "  qv        evaluate quality values\n");
+		fprintf(stderr, "  print     print dumped k-mer counts or hash histgram\n");
 		return 1;
 	}
 	if (strcmp(argv[1], "count") == 0) ret = main_count(argc-1, argv+1);

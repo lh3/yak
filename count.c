@@ -28,7 +28,7 @@ typedef struct { // cache to reduce locking
 } insbuf_t;
 
 typedef struct {
-	const yak_opt_t *opt;
+	const yak_copt_t *opt;
 	bseq_file_t *ks;
 	bfc_bf_t *bf;
 	bfc_ch_t *ch;
@@ -76,7 +76,7 @@ static void worker_count(void *_data, long k, int tid)
 	cnt_step_t *data = (cnt_step_t*)_data;
 	cnt_shared_t *cs = data->cs;
 	bseq1_t *s = &data->seqs[k];
-	const yak_opt_t *o = cs->opt;
+	const yak_copt_t *o = cs->opt;
 	int i, l;
 	bfc_kmer_t x = bfc_kmer_null;
 	for (i = l = 0; i < s->l_seq; ++i) {
@@ -119,7 +119,7 @@ static void *bfc_count_cb(void *shared, int step, void *_data)
 	return 0;
 }
 
-bfc_ch_t *bfc_count(const char *fn, const yak_opt_t *opt, bfc_ch_t *ch0)
+bfc_ch_t *bfc_count(const char *fn, const yak_copt_t *opt, bfc_ch_t *ch0)
 {
 	cnt_shared_t cs;
 	bfc_ch_t *ret = 0;
@@ -145,4 +145,15 @@ bfc_ch_t *bfc_count(const char *fn, const yak_opt_t *opt, bfc_ch_t *ch0)
 	ret = cs.ch;
 	bfc_bf_destroy(cs.bf);
 	return ret;
+}
+
+void yak_copt_init(yak_copt_t *opt)
+{
+	memset(opt, 0, sizeof(yak_copt_t));
+	opt->chunk_size = 100000000;
+	opt->k = 31;
+	opt->b_pre = 20;
+	opt->bf_shift = 0;
+	opt->bf_n_hashes = 4;
+	opt->n_threads = 4;
 }
