@@ -75,7 +75,7 @@ int main_count(int argc, char *argv[])
 	ch = bfc_count(argv[o.ind], &opt, 0);
 	if (o.ind + 1 < argc) {
 		bfc_ch_reset(ch);
-		ch = bfc_count(argv[o.ind], &opt, ch);
+		ch = bfc_count(argv[o.ind+1], &opt, ch);
 	}
 	if (out_fn) bfc_ch_dump(ch, out_fn);
 	bfc_ch_destroy(ch);
