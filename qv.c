@@ -74,8 +74,10 @@ static void worker_qv(void *_data, long k, int tid)
 		double qv = -1.0;
 		if (tot > 0) {
 			if (non0 > 0) {
-				qv = log(tot / non0) / qs->k;
-				qv = 4.3429448190325175 * log(qv);
+				if (tot > non0) {
+					qv = log((double)tot / non0) / qs->k;
+					qv = 4.3429448190325175 * log(qv);
+				} else qv = 99.0;
 			} else qv = 0.0;
 		}
 		printf("S\t%s\t%d\t%d\t%d\t%.2f\n", s->name, s->l_seq, tot, non0, qv);
