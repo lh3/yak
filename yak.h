@@ -25,7 +25,7 @@ void bfc_ch_destroy(bfc_ch_t *ch);
 int bfc_ch_insert(bfc_ch_t *ch, const uint64_t x[2], int forced, int old_only);
 int bfc_ch_get(const bfc_ch_t *ch, const uint64_t x[2]);
 void bfc_ch_reset(bfc_ch_t *ch);
-void bfc_ch_del2(bfc_ch_t *ch);
+int64_t bfc_ch_del2(bfc_ch_t *ch);
 uint64_t bfc_ch_count(const bfc_ch_t *ch);
 //int bfc_ch_hist(const bfc_ch_t *ch, uint64_t cnt[256], uint64_t high[64]);
 int bfc_ch_dump(const bfc_ch_t *ch, const char *fn);
