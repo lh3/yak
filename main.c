@@ -74,7 +74,11 @@ int main_count(int argc, char *argv[])
 	if (opt.b_pre + 64 < 2 * opt.k + YAK_COUNTER_BITS)
 		fprintf(stderr, "Warning: counting hashes instead. Please increase -p or reduce -k.\n");
 
-	ch = (bfc_ch_t*)bfc_count(argv[o.ind], &opt);
+	ch = bfc_count(argv[o.ind], &opt, 0);
+	if (o.ind + 1 < argc) {
+		bfc_ch_reset(ch);
+		ch = bfc_count(argv[o.ind], &opt, ch);
+	}
 	if (out_fn) bfc_ch_dump(ch, out_fn);
 	bfc_ch_destroy(ch);
 	return 0;

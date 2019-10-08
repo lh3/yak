@@ -59,7 +59,7 @@ static inline cnthash_t *get_subhash(const bfc_ch_t *ch, const uint64_t x[2], ui
 	}
 }
 
-int bfc_ch_insert(bfc_ch_t *ch, const uint64_t x[2], int forced)
+int bfc_ch_insert(bfc_ch_t *ch, const uint64_t x[2], int forced, int old_only)
 {
 	int absent;
 	uint64_t key;
@@ -72,11 +72,17 @@ int bfc_ch_insert(bfc_ch_t *ch, const uint64_t x[2], int forced)
 				while (h->lock); // lock
 		else return -1;
 	}
-	k = kh_put(cnt, h, key, &absent);
-	if (absent) {
-		kh_key(h, k) |= 1;
+	if (old_only) {
+		k = kh_get(cnt, h, key);
+		if (k != kh_end(h) && (kh_key(h, k) & YAK_MAX_COUNT) != YAK_MAX_COUNT)
+			++kh_key(h, k);
 	} else {
-		if ((kh_key(h, k) & YAK_MAX_COUNT) != YAK_MAX_COUNT) ++kh_key(h, k);
+		k = kh_put(cnt, h, key, &absent);
+		if (absent) {
+			kh_key(h, k) |= 1;
+		} else {
+			if ((kh_key(h, k) & YAK_MAX_COUNT) != YAK_MAX_COUNT) ++kh_key(h, k);
+		}
 	}
 	__sync_lock_release(&h->lock); // unlock
 	return 0;
@@ -108,6 +114,31 @@ uint64_t bfc_ch_count(const bfc_ch_t *ch)
 	return cnt;
 }
 
+void bfc_ch_reset(bfc_ch_t *ch)
+{
+	int i;
+	uint64_t mask = (~0ULL) << YAK_COUNTER_BITS;
+	for (i = 0; i < 1<<ch->b_pre; ++i) {
+		cnthash_t *h = ch->h[i];
+		khint_t k;
+		for (k = 0; k < kh_size(h); ++k)
+			if (kh_exist(h, k))
+				kh_key(h, k) &= mask;
+	}
+}
+
+void bfc_ch_del2(bfc_ch_t *ch)
+{
+	int i;
+	for (i = 0; i < 1<<ch->b_pre; ++i) {
+		cnthash_t *h = ch->h[i];
+		khint_t k;
+		for (k = 0; k < kh_size(h); ++k)
+			if (kh_exist(h, k) && (kh_key(h, k) & YAK_MAX_COUNT) < 2)
+				kh_del(cnt, h, k);
+	}
+}
+/*
 int bfc_ch_hist(const bfc_ch_t *ch, uint64_t cnt[256], uint64_t high[64])
 {
 	int i, max_i = -1;
@@ -126,7 +157,7 @@ int bfc_ch_hist(const bfc_ch_t *ch, uint64_t cnt[256], uint64_t high[64])
 			max = cnt[i], max_i = i;
 	return max_i;
 }
-
+*/
 int bfc_ch_dump(const bfc_ch_t *ch, const char *fn)
 {
 	FILE *fp;
