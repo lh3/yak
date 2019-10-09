@@ -118,24 +118,25 @@ int main_qv(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-	extern int main_print(int argc, char *argv[]);
-	extern int main_cmp(int argc, char *argv[]);
+	extern int main_inspect(int argc, char *argv[]);
 	int ret = 0, i;
 	yak_reset_realtime();
 	if (argc == 1) {
 		fprintf(stderr, "Usage: yak <command> <argument>\n");
 		fprintf(stderr, "Command:\n");
 		fprintf(stderr, "  count     count k-mers\n");
+		fprintf(stderr, "  inspect   inspect k-mer hash tables\n");
 		fprintf(stderr, "  qv        evaluate quality values\n");
-		fprintf(stderr, "  cmp       compare two k-mer hash tables\n");
-		fprintf(stderr, "  print     print dumped k-mer counts or hash histgram\n");
+		fprintf(stderr, "  version   print version number\n");
 		return 1;
 	}
 	if (strcmp(argv[1], "count") == 0) ret = main_count(argc-1, argv+1);
 	else if (strcmp(argv[1], "qv") == 0) ret = main_qv(argc-1, argv+1);
-	else if (strcmp(argv[1], "cmp") == 0) ret = main_cmp(argc-1, argv+1);
-	else if (strcmp(argv[1], "print") == 0) ret = main_print(argc-1, argv+1);
-	else {
+	else if (strcmp(argv[1], "inspect") == 0) ret = main_inspect(argc-1, argv+1);
+	else if (strcmp(argv[1], "version") == 0) {
+		puts(YAK_VERSION);
+		return 0;
+	} else {
 		fprintf(stderr, "[E::%s] unknown command\n", __func__);
 		return 1;
 	}
