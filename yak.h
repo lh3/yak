@@ -1,11 +1,12 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAK_VERSION "r15"
+#define YAK_VERSION "r16"
 
 #include <stdint.h>
 
 #define YAK_MAX_KMER     63
+#define YAK_COUNTER_BITS 8
 
 typedef struct {
 	int32_t bf_shift, bf_n_hashes;
@@ -23,8 +24,6 @@ typedef struct {
 	int64_t chunk_size;
 } yak_qopt_t;
 
-#define YAK_COUNTER_BITS 8
-
 extern int yak_verbose;
 
 struct bfc_ch_s;
@@ -40,6 +39,7 @@ bfc_ch_t *bfc_ch_init(int k, int l_pre);
 void bfc_ch_destroy(bfc_ch_t *ch);
 int bfc_ch_insert(bfc_ch_t *ch, const uint64_t x[2], int forced, int old_only);
 int bfc_ch_get(const bfc_ch_t *ch, const uint64_t x[2]);
+int bfc_ch_get_direct(const bfc_ch_t *ch, int pre, uint64_t key);
 void bfc_ch_reset(bfc_ch_t *ch);
 int64_t bfc_ch_del2(bfc_ch_t *ch);
 uint64_t bfc_ch_count(const bfc_ch_t *ch);

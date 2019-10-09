@@ -98,6 +98,14 @@ int bfc_ch_get(const bfc_ch_t *ch, const uint64_t x[2])
 	return itr == kh_end(h)? -1 : kh_key(h, itr) & YAK_MAX_COUNT;
 }
 
+int bfc_ch_get_direct(const bfc_ch_t *ch, int pre, uint64_t key)
+{
+	cnthash_t *h = ch->h[pre];
+	khint_t k;
+	k = kh_get(cnt, h, key);
+	return k == kh_end(h)? -1 : kh_key(h, k) & YAK_MAX_COUNT;
+}
+
 int bfc_ch_kmer_occ(const bfc_ch_t *ch, const uint64_t z[2])
 {
 	uint64_t x[2];
