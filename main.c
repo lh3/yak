@@ -4,7 +4,9 @@
 #include <stdint.h>
 #include <assert.h>
 #include <limits.h>
+#include <unistd.h>
 #include <math.h>
+#include <sys/stat.h>
 #include "ketopt.h"
 #include "yak.h"
 #include "sys.h"
@@ -40,7 +42,7 @@ int main_count(int argc, char *argv[])
 	bfc_ch_t *ch = 0;
 	ketopt_t o = KETOPT_INIT;
 	char *out_fn = 0;
-	int c;
+	int c, is_pipe = 0;
 
 	yak_copt_init(&opt);
 	while ((c = ketopt(&o, argc, argv, 1, "k:b:t:H:K:v:o:p:", 0)) >= 0) {
@@ -58,13 +60,35 @@ int main_count(int argc, char *argv[])
 		usage_count(stderr, &opt);
 		return 1;
 	}
+	if (out_fn == 0) {
+		if (isatty(1))
+			fprintf(stderr, "Warning: please use option -o to specify the output file\n");
+		else out_fn = "-";
+	}
 	if (opt.b_pre + 64 < 2 * opt.k + YAK_COUNTER_BITS)
-		fprintf(stderr, "Warning: counting hashes instead. Please increase -p or reduce -k.\n");
+		fprintf(stderr, "Warning: counting hashes instead. Please increase -p or reduce -k to count k-mers.\n");
+
+	if (strcmp(argv[o.ind], "-") == 0 && !isatty(0)) is_pipe = 1;
+	else {
+		struct stat st;
+		if (stat(argv[o.ind], &st) < 0) {
+			fprintf(stderr, "ERROR: fail to open file '%s'\n", argv[o.ind]);
+			return 1;
+		}
+		if (st.st_mode & S_IFIFO) is_pipe = 1;
+	}
+	if (is_pipe && opt.bf_shift && argc - o.ind == 1) {
+		fprintf(stderr, "ERROR: when bloom filter is in use, please provide a normal file or two streams.\n");
+		return 1;
+	}
+	if (!is_pipe && o.ind + 1 < argc)
+		fprintf(stderr, "Warning: the 2nd input file '%s' is ignored\n", argv[o.ind + 1]);
 
 	ch = bfc_count(argv[o.ind], &opt, 0);
-	if (o.ind + 1 < argc) {
+	if (opt.bf_shift > 0) {
+		char *next_fn = is_pipe? argv[o.ind + 1] : argv[o.ind];
 		bfc_ch_reset(ch);
-		ch = bfc_count(argv[o.ind+1], &opt, ch);
+		ch = bfc_count(next_fn, &opt, ch);
 	}
 	if (out_fn) bfc_ch_dump(ch, out_fn);
 	bfc_ch_destroy(ch);
