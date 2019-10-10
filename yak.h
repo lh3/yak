@@ -7,6 +7,7 @@
 
 #define YAK_MAX_KMER     63
 #define YAK_COUNTER_BITS 8
+#define YAK_N_COUNTS     (1<<YAK_COUNTER_BITS)
 
 typedef struct {
 	int32_t bf_shift, bf_n_hashes;
@@ -23,6 +24,11 @@ typedef struct {
 	double min_frac;
 	int64_t chunk_size;
 } yak_qopt_t;
+
+typedef struct {
+	double qv, cov, err;
+	double adj_cnt[1<<YAK_COUNTER_BITS];
+} yak_qstat_t;
 
 extern int yak_verbose;
 

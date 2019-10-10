@@ -2,7 +2,7 @@ CC=			gcc
 CFLAGS=		-g -Wall -O2
 CPPFLAGS=
 INCLUDES=	
-OBJS=		kthread.o sys.o bseq.o bbf.o htab.o count.o qv.o
+OBJS=		kthread.o sys.o bseq.o bbf.o htab.o count.o qv.o 6gjdn.o
 PROG=		yak
 LIBS=		-lm -lz -lpthread
 

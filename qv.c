@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include <math.h>
 #include "kthread.h"
 #include "yak.h"
@@ -143,4 +144,83 @@ void yak_qopt_init(yak_qopt_t *opt)
 	opt->chunk_size = 1000000000;
 	opt->n_threads = 4;
 	opt->min_frac = 0.5;
+}
+
+int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double eps, yak_qstat_t *qs)
+{
+	extern int gjdn(double *a, double *b, int n, int m);
+	const int max_pow = 2;
+	int32_t i, j, k, c, n_cnt = YAK_N_COUNTS, max_c, max_cnt = 0, min_c, min_cnt, n_ext;
+	int64_t ori_sum;
+	double eps_upper, adj_sum, x[YAK_N_COUNTS], y[YAK_N_COUNTS], A[5 * 5], B[5]; // max power: 4
+	double *xp;
+
+	memset(qs, 0, sizeof(yak_qstat_t));
+	qs->qv = -1.0, qs->err = cnt[0];
+
+	// find the max and the min
+	for (c = 2; c < n_cnt; ++c)
+		if (max_cnt < cnt[c]) max_cnt = cnt[c], max_c = c;
+	for (c = 2, min_cnt = max_cnt; c < max_c; ++c)
+		if (min_cnt > cnt[c]) min_cnt = cnt[c], min_c = c;
+	qs->cov = (double)cnt[c] / hist[c];
+
+	// find the upper eps
+	eps_upper = 1.0;
+	for (c = 2; c < max_c; ++c) {
+		double e = cnt[c] / (qs->cov * hist[c]);
+		if (eps_upper > e) eps_upper = e;
+	}
+	if (eps > eps_upper) eps = eps_upper * 0.5;
+
+	// compute adj_cnt[] in the range of [min_c, max_c)
+	for (c = 0; c < n_cnt; ++c) qs->adj_cnt[c] = cnt[c];
+	for (c = min_c; c < max_c; ++c) {
+		double err = (hist[c] - cnt[c] / qs->cov) / (1.0 - eps);
+		qs->adj_cnt[c] = cnt[c] - err * qs->cov * eps;
+	}
+
+	// fit the tail
+	n_ext = max_c - min_c + 1 < 8? max_c - min_c + 1 : 8;
+	if (n_ext < 3) return -1;
+	for (k = 0; k < n_ext; ++k) {
+		x[k] = min_c + k;
+		y[k] = qs->adj_cnt[min_c + k + 1] / qs->adj_cnt[min_c + k];
+	}
+	xp = (double*)calloc(n_ext * (max_pow * 2 + 1), sizeof(double));
+	for (k = 0; k < n_ext; ++k) {
+		double t = 1.0;
+		for (i = 0; i <= max_pow * 2; ++i)
+			xp[i * n_ext + k] = t, t *= x[k];
+	}
+	for (i = 0; i <= max_pow; ++i) {
+		double sum;
+		for (j = 0; j <= i; ++j) {
+			for (k = 0, sum = 0.0; k < n_ext; ++k)
+				sum += xp[(i + j) * n_ext + k];
+			A[i * n_ext + j] = A[j * n_ext + i] = sum;
+		}
+		for (k = 0, sum = 0.0; k < n_ext; ++k)
+			sum += xp[i * n_ext + k] * y[k];
+		B[i] = sum;
+	}
+	gjdn(A, B, max_pow + 1, 1);
+	free(xp);
+
+	// extrapolate to the rest
+	for (c = min_c - 1; c >= 0; --c) {
+		double r = 0.0, t = 1.0;
+		for (i = 0; i <= max_pow; ++i)
+			r += t, t *= c;
+		if (r < 1.01) r = 1.01;
+		qs->adj_cnt[c] = qs->adj_cnt[c + 1] / r;
+	}
+
+	// compute qv
+	for (c = 0, adj_sum = 0.0, ori_sum = 0; c < n_cnt; ++c)
+		adj_sum += qs->adj_cnt[c], ori_sum += cnt[c];
+	assert(adj_sum <= (double)ori_sum);
+	qs->err = ori_sum - adj_sum;
+	qs->qv = -4.3429448190325175 * log(log(ori_sum / adj_sum) / kmer);
+	return 0;
 }
