@@ -100,7 +100,7 @@ int main_qv(int argc, char *argv[])
 	yak_qopt_t opt;
 	bfc_ch_t *ch = 0;
 	ketopt_t o = KETOPT_INIT;
-	int64_t cnt[1<<YAK_COUNTER_BITS], tot, acc;
+	int64_t cnt[1<<YAK_COUNTER_BITS], hist[1<<YAK_COUNTER_BITS], tot, acc;
 	int c, i, kmer;
 
 	yak_qopt_init(&opt);
@@ -125,6 +125,7 @@ int main_qv(int argc, char *argv[])
 	ch = bfc_ch_restore(argv[o.ind]);
 	assert(ch);
 	kmer = bfc_ch_get_k(ch);
+	bfc_ch_hist(ch, hist);
 	yak_qv(&opt, argv[o.ind+1], ch, cnt);
 	for (i = 0, tot = 0; i < 1<<YAK_COUNTER_BITS; ++i)
 		tot += cnt[i];
@@ -133,9 +134,9 @@ int main_qv(int argc, char *argv[])
 		acc += cnt[i];
 		x = log((double)tot / acc) / kmer;
 		x = -10.0 * log(x) / log(10);
-		printf("Q\t%d\t%ld\t%.3f\n", i, (long)cnt[i], x);
+		printf("Q\t%d\t%ld\t%ld\t%.3f\n", i, (long)hist[i], (long)cnt[i], x);
 	}
-	printf("Q\t0\t%ld\t0\n", (long)cnt[0]);
+	printf("Q\t0\t0\t%ld\t0\n", (long)cnt[0]);
 	bfc_ch_destroy(ch);
 	return 0;
 }

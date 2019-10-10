@@ -154,8 +154,8 @@ int64_t bfc_ch_del2(bfc_ch_t *ch)
 				(long)del, (long)cnt, 100.0 * del / cnt);
 	return del;
 }
-/*
-int bfc_ch_hist(const bfc_ch_t *ch, uint64_t cnt[1<<YAK_COUNTER_BITS])
+
+int bfc_ch_hist(const bfc_ch_t *ch, int64_t cnt[1<<YAK_COUNTER_BITS])
 {
 	int i, max_i = -1;
 	uint64_t max;
@@ -172,7 +172,7 @@ int bfc_ch_hist(const bfc_ch_t *ch, uint64_t cnt[1<<YAK_COUNTER_BITS])
 			max = cnt[i], max_i = i;
 	return max_i;
 }
-*/
+
 int bfc_ch_dump(const bfc_ch_t *ch, const char *fn)
 {
 	FILE *fp;

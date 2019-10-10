@@ -1,7 +1,7 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAK_VERSION "r18"
+#define YAK_VERSION "r21"
 
 #include <stdint.h>
 
@@ -43,6 +43,7 @@ int bfc_ch_get_direct(const bfc_ch_t *ch, int pre, uint64_t key);
 void bfc_ch_reset(bfc_ch_t *ch);
 int64_t bfc_ch_del2(bfc_ch_t *ch);
 uint64_t bfc_ch_count(const bfc_ch_t *ch);
+int bfc_ch_hist(const bfc_ch_t *ch, int64_t cnt[1<<YAK_COUNTER_BITS]);
 int bfc_ch_dump(const bfc_ch_t *ch, const char *fn);
 bfc_ch_t *bfc_ch_restore(const char *fn);
 int bfc_ch_get_k(const bfc_ch_t *ch);
