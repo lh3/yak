@@ -98,7 +98,7 @@ int main_inspect(int argc, char *argv[])
 			acc_tot += tot[i];
 			if (acc_tot == 0) continue;
 			if (tot[i] == 0) continue;
-			printf("SN\t%d\t%ld\t%ld", i, (long)hist[i], (long)tot[i]);
+			printf("SN\t%d\t%ld\t%ld", i, (long)tot[i], (long)hist[i]);
 			for (j = 1; j <= max_cnt; ++j) {
 				acc_cnt[j] += acc[i * YAK_N_COUNTS + j];
 				printf("\t%.4f", (double)acc_cnt[j] / acc_tot);
@@ -109,7 +109,7 @@ int main_inspect(int argc, char *argv[])
 		for (i = YAK_N_COUNTS - 2; i >= 0; --i)
 			for (j = 0; j < YAK_N_COUNTS; ++j)
 				acc[i * YAK_N_COUNTS + j] += acc[(i+1) * YAK_N_COUNTS + j];
-		for (i = 1; i <= max_cnt; ++i) {
+		for (i = 1; i < YAK_N_COUNTS; ++i) {
 			yak_qstat_t qs;
 			if (tot[i] == 0) continue;
 			yak_qv_solve(hist, &acc[i * YAK_N_COUNTS], kmer, fpr, &qs);
