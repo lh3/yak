@@ -1,7 +1,7 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAK_VERSION "r21"
+#define YAK_VERSION "r23"
 
 #include <stdint.h>
 
@@ -22,11 +22,14 @@ typedef struct {
 	int32_t min_len;
 	int32_t n_threads;
 	double min_frac;
+	double eps;
 	int64_t chunk_size;
 } yak_qopt_t;
 
 typedef struct {
+	int64_t tot;
 	double qv, cov, err;
+	double eps_lower, eps_upper;
 	double adj_cnt[1<<YAK_COUNTER_BITS];
 } yak_qstat_t;
 
@@ -40,6 +43,7 @@ bfc_ch_t *bfc_count(const char *fn, const yak_copt_t *opt, bfc_ch_t *ch0);
 
 void yak_qopt_init(yak_qopt_t *opt);
 void yak_qv(const yak_qopt_t *opt, const char *fn, const bfc_ch_t *ch, int64_t *cnt);
+int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double eps, yak_qstat_t *qs);
 
 bfc_ch_t *bfc_ch_init(int k, int l_pre);
 void bfc_ch_destroy(bfc_ch_t *ch);

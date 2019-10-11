@@ -81,7 +81,7 @@ static void worker_qv(void *_data, long k, int tid)
 				} else qv = 99.0;
 			} else qv = 0.0;
 		}
-		printf("S\t%s\t%d\t%d\t%d\t%.2f\n", s->name, s->l_seq, tot, non0, qv);
+		printf("SQ\t%s\t%d\t%d\t%d\t%.2f\n", s->name, s->l_seq, tot, non0, qv);
 	}
 
 	if (non0 < tot * qs->opt->min_frac) return;
@@ -144,37 +144,38 @@ void yak_qopt_init(yak_qopt_t *opt)
 	opt->chunk_size = 1000000000;
 	opt->n_threads = 4;
 	opt->min_frac = 0.5;
+	opt->eps = 0.00005;
 }
 
 int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double eps, yak_qstat_t *qs)
 {
 	extern int gjdn(double *a, double *b, int n, int m);
 	const int max_pow = 2;
-	int32_t i, j, k, c, n_cnt = YAK_N_COUNTS, max_c, max_cnt = 0, min_c, min_cnt, n_ext;
-	int64_t ori_sum;
-	double eps_upper, adj_sum, x[YAK_N_COUNTS], y[YAK_N_COUNTS], A[5 * 5], B[5]; // max power: 4
+	int32_t i, j, k, c, n_cnt = YAK_N_COUNTS, max_c, max_cnt, min_c, min_cnt, n_ext;
+	double adj_sum, x[YAK_N_COUNTS], y[YAK_N_COUNTS], A[5 * 5], B[5]; // max power: 4
 	double *xp;
 
 	memset(qs, 0, sizeof(yak_qstat_t));
 	qs->qv = -1.0, qs->err = cnt[0];
+	for (c = 0, qs->tot = 0; c < n_cnt; ++c)
+		qs->tot += cnt[c], qs->adj_cnt[c] = cnt[c];
 
 	// find the max and the min
-	for (c = 2; c < n_cnt; ++c)
+	for (c = 2, max_cnt = 0, max_c = -1; c < n_cnt - 1; ++c)
 		if (max_cnt < cnt[c]) max_cnt = cnt[c], max_c = c;
-	for (c = 2, min_cnt = max_cnt; c < max_c; ++c)
+	for (c = 2, min_cnt = max_cnt, min_c = -1; c < max_c; ++c)
 		if (min_cnt > cnt[c]) min_cnt = cnt[c], min_c = c;
-	qs->cov = (double)cnt[c] / hist[c];
+	qs->cov = (double)cnt[max_c] / hist[max_c];
 
 	// find the upper eps
-	eps_upper = 1.0;
+	qs->eps_upper = 1.0;
 	for (c = 2; c < max_c; ++c) {
 		double e = cnt[c] / (qs->cov * hist[c]);
-		if (eps_upper > e) eps_upper = e;
+		if (qs->eps_upper > e) qs->eps_upper = e;
 	}
-	if (eps > eps_upper) eps = eps_upper * 0.5;
+	if (eps > qs->eps_upper) eps = qs->eps_upper * 0.5;
 
 	// compute adj_cnt[] in the range of [min_c, max_c)
-	for (c = 0; c < n_cnt; ++c) qs->adj_cnt[c] = cnt[c];
 	for (c = min_c; c < max_c; ++c) {
 		double err = (hist[c] - cnt[c] / qs->cov) / (1.0 - eps);
 		qs->adj_cnt[c] = cnt[c] - err * qs->cov * eps;
@@ -198,7 +199,7 @@ int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double eps, 
 		for (j = 0; j <= i; ++j) {
 			for (k = 0, sum = 0.0; k < n_ext; ++k)
 				sum += xp[(i + j) * n_ext + k];
-			A[i * n_ext + j] = A[j * n_ext + i] = sum;
+			A[i * (max_pow + 1) + j] = A[j * (max_pow + 1) + i] = sum;
 		}
 		for (k = 0, sum = 0.0; k < n_ext; ++k)
 			sum += xp[i * n_ext + k] * y[k];
@@ -211,16 +212,16 @@ int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double eps, 
 	for (c = min_c - 1; c >= 0; --c) {
 		double r = 0.0, t = 1.0;
 		for (i = 0; i <= max_pow; ++i)
-			r += t, t *= c;
+			r += B[i] * t, t *= c;
 		if (r < 1.01) r = 1.01;
 		qs->adj_cnt[c] = qs->adj_cnt[c + 1] / r;
 	}
 
 	// compute qv
-	for (c = 0, adj_sum = 0.0, ori_sum = 0; c < n_cnt; ++c)
-		adj_sum += qs->adj_cnt[c], ori_sum += cnt[c];
-	assert(adj_sum <= (double)ori_sum);
-	qs->err = ori_sum - adj_sum;
-	qs->qv = -4.3429448190325175 * log(log(ori_sum / adj_sum) / kmer);
+	for (c = 0, adj_sum = 0.0; c < n_cnt; ++c)
+		adj_sum += qs->adj_cnt[c];
+	assert(adj_sum <= (double)qs->tot);
+	qs->err = qs->tot - adj_sum;
+	qs->qv = -4.3429448190325175 * log(log(qs->tot / adj_sum) / kmer);
 	return 0;
 }

@@ -100,16 +100,18 @@ int main_qv(int argc, char *argv[])
 	yak_qopt_t opt;
 	bfc_ch_t *ch = 0;
 	ketopt_t o = KETOPT_INIT;
-	int64_t cnt[1<<YAK_COUNTER_BITS], hist[1<<YAK_COUNTER_BITS], tot, acc;
+	int64_t cnt[1<<YAK_COUNTER_BITS], hist[1<<YAK_COUNTER_BITS];
 	int c, i, kmer;
+	yak_qstat_t qs;
 
 	yak_qopt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "K:t:l:f:p", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "K:t:l:f:pe:", 0)) >= 0) {
 		if (c == 'K') opt.chunk_size = mm_parse_num(o.arg);
 		else if (c == 'l') opt.min_len = mm_parse_num(o.arg);
 		else if (c == 'f') opt.min_frac = atof(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
 		else if (c == 'p') opt.print_each = 1;
+		else if (c == 'e') opt.eps = atof(o.arg);
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: yak qv [options] <kmer.hash> <seq.fa>\n");
@@ -127,16 +129,12 @@ int main_qv(int argc, char *argv[])
 	kmer = bfc_ch_get_k(ch);
 	bfc_ch_hist(ch, hist);
 	yak_qv(&opt, argv[o.ind+1], ch, cnt);
-	for (i = 0, tot = 0; i < 1<<YAK_COUNTER_BITS; ++i)
-		tot += cnt[i];
-	for (i = (1<<YAK_COUNTER_BITS) - 1, acc = 0; i >= 1; --i) {
-		double x;
-		acc += cnt[i];
-		x = log((double)tot / acc) / kmer;
-		x = -10.0 * log(x) / log(10);
-		printf("Q\t%d\t%ld\t%ld\t%.3f\n", i, (long)hist[i], (long)cnt[i], x);
-	}
-	printf("Q\t0\t0\t%ld\t0\n", (long)cnt[0]);
+	yak_qv_solve(hist, cnt, kmer, opt.eps, &qs);
+	for (i = (1<<YAK_COUNTER_BITS) - 1; i >= 0; --i)
+		printf("CT\t%d\t%ld\t%ld\t%.3f\n", i, (long)hist[i], (long)cnt[i], qs.adj_cnt[i]);
+	printf("ER\t%ld\t%.3f\n", (long)qs.tot, qs.err);
+	printf("CV\t%.3f\n", qs.cov);
+	printf("QV\t%.3f\n", qs.qv);
 	bfc_ch_destroy(ch);
 	return 0;
 }
