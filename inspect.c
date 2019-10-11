@@ -8,15 +8,16 @@
 int main_inspect(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int c, i, j, min_cnt = 1, k, l_pre, counter_bits, print_kmer = 0;
+	int c, i, j, max_cnt = 10, k, l_pre, counter_bits, print_kmer = 0;
 	uint32_t t[3];
-	uint64_t tot[1<<YAK_COUNTER_BITS], hit[1<<YAK_COUNTER_BITS], mask;
+	int64_t *cnt, tot[YAK_N_COUNTS], hist[YAK_N_COUNTS];
+	uint64_t mask;
 	FILE *fp;
 	bfc_ch_t *ch = 0;
 	char *fn_cmp = 0;
 
 	while ((c = ketopt(&o, argc, argv, 1, "m:c:p", 0)) >= 0) {
-		if (c == 'm') min_cnt = atoi(o.arg);
+		if (c == 'm') max_cnt = atoi(o.arg);
 		else if (c == 'c') fn_cmp = o.arg;
 		else if (c == 'p') print_kmer = 1;
 	}
@@ -24,14 +25,16 @@ int main_inspect(int argc, char *argv[])
 		fprintf(stderr, "Usage: yak inspect [options] <in.yak>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -c FILE   k-mer hash table for comparison []\n");
-		fprintf(stderr, "  -m INT    min count (effective with -c) [%d]\n", min_cnt);
+		fprintf(stderr, "  -m INT    max count (effective with -c) [%d]\n", max_cnt);
 		fprintf(stderr, "  -p        print k-mers\n");
 		return 1;
 	}
 
-	for (i = 0; i < 1<<YAK_COUNTER_BITS; ++i) tot[i] = hit[i] = 0;
+	for (i = 0; i < YAK_N_COUNTS; ++i) hist[i] = tot[i] = 0;
+	cnt = (int64_t*)calloc(YAK_N_COUNTS * (max_cnt + 1), sizeof(int64_t));
 	if (fn_cmp) {
 		ch = bfc_ch_restore(fn_cmp);
+		bfc_ch_hist(ch, hist);
 		assert(ch);
 	}
 	fp = fopen(argv[o.ind], "rb");
@@ -56,8 +59,10 @@ int main_inspect(int argc, char *argv[])
 			if (ch) {
 				int cnt1;
 				cnt1 = bfc_ch_get_direct(ch, i, key);
-				if (cnt1 >= min_cnt)
-					++hit[cnt0], to_print = 0;
+				if (cnt1 < 0) cnt1 = 0;
+				if (cnt1 > max_cnt) cnt1 = max_cnt;
+				if (cnt1 > 0) to_print = 0;
+				++cnt[cnt1 * YAK_N_COUNTS + cnt0];
 			}
 			if (to_print) {
 				uint64_t h[2], y[2];
@@ -71,7 +76,7 @@ int main_inspect(int argc, char *argv[])
 					h[1] = key >> counter_bits & mask;
 				}
 				bfc_kmer_hash_inv(k, h, y);
-				printf("K\t%s\t%d\n", bfc_kmer_2str(k, y, buf), cnt0);
+				printf("KS\t%s\t%d\n", bfc_kmer_2str(k, y, buf), cnt0);
 			}
 		}
 	}
@@ -79,18 +84,28 @@ int main_inspect(int argc, char *argv[])
 	bfc_ch_destroy(ch);
 
 	if (fn_cmp) {
-		uint64_t acc_tot = 0, acc_hit = 0;
-		for (i = (1<<YAK_COUNTER_BITS) - 1; i >= 0; --i) {
-			acc_tot += tot[i], acc_hit += hit[i];
-			if (acc_tot == 0) continue;
-			printf("C\t%d\t%lld\t%lld\t%lld\t%lld\t%.6f\n", i, (long long)tot[i], (long long)hit[i], (long long)acc_tot, (long long)acc_hit, (double)acc_hit / acc_tot);
+		int64_t acc_tot = 0, acc_cnt[YAK_N_COUNTS];
+		for (i = 0; i < YAK_N_COUNTS; ++i) acc_cnt[i] = 0;
+		for (j = max_cnt - 1; j >= 1; --j) {
+			for (i = 0; i < YAK_N_COUNTS; ++i)
+				cnt[j * YAK_N_COUNTS + i] += cnt[(j+1) * YAK_N_COUNTS + i];
 		}
-	} else {
-		uint64_t acc_tot = 0;
-		for (i = (1<<YAK_COUNTER_BITS) - 1; i >= 0; --i) {
+		for (i = YAK_N_COUNTS - 1; i >= 0; --i) {
 			acc_tot += tot[i];
 			if (acc_tot == 0) continue;
-			printf("H\t%d\t%lld\t%lld\n", i, (long long)tot[i], (long long)acc_tot);
+			printf("SN\t%d\t%ld\t%ld", i, (long)hist[i], (long)tot[i]);
+			for (j = 1; j <= max_cnt; ++j) {
+				acc_cnt[j] += cnt[j * YAK_N_COUNTS + i];
+				printf("\t%.4f", (double)acc_cnt[j] / acc_tot);
+			}
+			printf("\n");
+		}
+	} else {
+		int64_t acc_tot = 0;
+		for (i = YAK_N_COUNTS - 1; i >= 0; --i) {
+			acc_tot += tot[i];
+			if (acc_tot == 0) continue;
+			printf("HS\t%d\t%ld\t%ld\t%ld\n", i, (long)hist[i], (long)tot[i], (long)acc_tot);
 		}
 	}
 	return 0;
