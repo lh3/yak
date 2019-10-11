@@ -18,26 +18,27 @@ int main_inspect(int argc, char *argv[])
 	bfc_ch_t *ch = 0;
 	char *fn_cmp = 0;
 
-	while ((c = ketopt(&o, argc, argv, 1, "m:c:p", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "m:p", 0)) >= 0) {
 		if (c == 'm') max_cnt = atoi(o.arg);
-		else if (c == 'c') fn_cmp = o.arg;
 		else if (c == 'p') print_kmer = 1;
 	}
 	if (argc - o.ind < 1) {
-		fprintf(stderr, "Usage: yak inspect [options] <in.yak>\n");
+		fprintf(stderr, "Usage: yak inspect [options] <in1.yak> [in2.yak]\n");
 		fprintf(stderr, "Options:\n");
-		fprintf(stderr, "  -c FILE   k-mer hash table for comparison []\n");
-		fprintf(stderr, "  -m INT    max count (effective with -c) [%d]\n", max_cnt);
+		fprintf(stderr, "  -m INT    max count (effective with in2.yak) [%d]\n", max_cnt);
 		fprintf(stderr, "  -p        print k-mers\n");
+		fprintf(stderr, "Notes: when in2.yak is present, inspect evaluates the k-mer QV of in1.yak and\n");
+		fprintf(stderr, "  the k-mer sensitivity of in2.yak.\n");
 		return 1;
 	}
+	if (argc - o.ind >= 2) fn_cmp = argv[o.ind + 1];
 
 	for (i = 0; i < YAK_N_COUNTS; ++i) hist[i] = tot[i] = 0;
 	if (fn_cmp) {
 		ch = bfc_ch_restore(fn_cmp);
 		bfc_ch_hist(ch, hist);
 		assert(ch);
-		// cnt[in.yak][cmp.tak]
+		// cnt[in1.yak][in2.tak]
 		cnt = (int64_t*)calloc(YAK_N_COUNTS * YAK_N_COUNTS, sizeof(int64_t));
 	}
 	fp = fopen(argv[o.ind], "rb");
@@ -96,6 +97,7 @@ int main_inspect(int argc, char *argv[])
 		for (i = YAK_N_COUNTS - 1; i >= 0; --i) {
 			acc_tot += tot[i];
 			if (acc_tot == 0) continue;
+			if (tot[i] == 0) continue;
 			printf("SN\t%d\t%ld\t%ld", i, (long)hist[i], (long)tot[i]);
 			for (j = 1; j <= max_cnt; ++j) {
 				acc_cnt[j] += acc[i * YAK_N_COUNTS + j];
@@ -109,6 +111,7 @@ int main_inspect(int argc, char *argv[])
 				acc[i * YAK_N_COUNTS + j] += acc[(i+1) * YAK_N_COUNTS + j];
 		for (i = 1; i <= max_cnt; ++i) {
 			yak_qstat_t qs;
+			if (tot[i] == 0) continue;
 			yak_qv_solve(hist, &acc[i * YAK_N_COUNTS], kmer, fpr, &qs);
 			printf("QV\t%d\t%ld\t%ld\t%.3f\t%.3f\n", i, (long)qs.tot, (long)acc[i * YAK_N_COUNTS], qs.qv_raw, qs.qv);
 		}
