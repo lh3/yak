@@ -144,10 +144,10 @@ void yak_qopt_init(yak_qopt_t *opt)
 	opt->chunk_size = 1000000000;
 	opt->n_threads = 4;
 	opt->min_frac = 0.5;
-	opt->eps = 0.00005;
+	opt->fpr = 0.00005;
 }
 
-int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double eps, yak_qstat_t *qs)
+int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double fpr, yak_qstat_t *qs)
 {
 	extern int gjdn(double *a, double *b, int n, int m);
 	const int max_pow = 2;
@@ -167,18 +167,30 @@ int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double eps, 
 		if (min_cnt > cnt[c]) min_cnt = cnt[c], min_c = c;
 	qs->cov = (double)cnt[max_c] / hist[max_c];
 
-	// find the upper eps
-	qs->eps_upper = 1.0;
+	// find the upper fpr
+	qs->fpr_upper = 1.0;
 	for (c = 2; c < max_c; ++c) {
 		double e = cnt[c] / (qs->cov * hist[c]);
-		if (qs->eps_upper > e) qs->eps_upper = e;
+		if (qs->fpr_upper > e) qs->fpr_upper = e;
 	}
-	if (eps > qs->eps_upper) eps = qs->eps_upper * 0.5;
+	if (fpr > qs->fpr_upper) fpr = qs->fpr_upper * 0.5;
+
+	// find the lower bound (if possible)
+	qs->fpr_lower = 0.0;
+	if (min_c > 2) {
+		double e = (cnt[2] - cnt[min_c]) / (qs->cov * hist[c]);
+		if (qs->fpr_lower < e) qs->fpr_lower = e;
+	}
+	if (fpr < qs->fpr_lower) fpr = qs->fpr_lower;
+	if (qs->fpr_lower >= qs->fpr_upper)
+		fprintf(stderr, "Warning: the FPR upper bound is smaller than the lower bound. Trust the lower bound.\n");
 
 	// compute adj_cnt[] in the range of [min_c, max_c)
-	for (c = min_c; c < max_c; ++c) {
-		double err = (hist[c] - cnt[c] / qs->cov) / (1.0 - eps);
-		qs->adj_cnt[c] = cnt[c] - err * qs->cov * eps;
+	for (c = max_c - 1; c >= min_c; --c) {
+		double err = (hist[c] - cnt[c] / qs->cov) / (1.0 - fpr);
+		qs->adj_cnt[c] = cnt[c] - err * qs->cov * fpr;
+		if (qs->adj_cnt[c] < 0.0) qs->adj_cnt[c] = 0.0;
+		//if (qs->adj_cnt[c] > qs->adj_cnt[c+1]) qs->adj_cnt[c] = qs->adj_cnt[c+1] * 0.99;
 	}
 
 	// fit the tail

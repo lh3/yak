@@ -4,7 +4,7 @@
 
 int gjdn(double *a, double *b, int n, int m)
 {
-	int *js, l, k, i, j, is, p, q;
+	int *js, l, k, i, j, is = 0, p, q;
 	double d, t;
 	js = malloc(n * sizeof(int));
 	l = 1;

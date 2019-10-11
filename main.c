@@ -111,13 +111,14 @@ int main_qv(int argc, char *argv[])
 		else if (c == 'f') opt.min_frac = atof(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
 		else if (c == 'p') opt.print_each = 1;
-		else if (c == 'e') opt.eps = atof(o.arg);
+		else if (c == 'e') opt.fpr = atof(o.arg);
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: yak qv [options] <kmer.hash> <seq.fa>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -l NUM      min sequence length [%d]\n", opt.min_len);
 		fprintf(stderr, "  -f FLOAT    min k-mer fraction [%g]\n", opt.min_frac);
+		fprintf(stderr, "  -e FLOAT    false positive rate [%g]\n", opt.fpr);
 		fprintf(stderr, "  -p          print QV for each sequence\n");
 		fprintf(stderr, "  -t INT      number of threads [%d]\n", opt.n_threads);
 		fprintf(stderr, "  -K NUM      batch size [1g]\n");
@@ -128,10 +129,17 @@ int main_qv(int argc, char *argv[])
 	assert(ch);
 	kmer = bfc_ch_get_k(ch);
 	bfc_ch_hist(ch, hist);
+	printf("CC\tCT  kmer_occurrence    short_read_kmer_count  raw_input_kmer_count  adjusted_input_kmer_count\n");
+	printf("CC\tFR  fpr_lower_bound    fpr_upper_bound\n");
+	printf("CC\tER  total_input_kmers  adjusted_error_kmers\n");
+	printf("CC\tCV  coverage\n");
+	printf("CC\tQV  quality_value\n");
+	printf("CC\n");
 	yak_qv(&opt, argv[o.ind+1], ch, cnt);
-	yak_qv_solve(hist, cnt, kmer, opt.eps, &qs);
+	yak_qv_solve(hist, cnt, kmer, opt.fpr, &qs);
 	for (i = (1<<YAK_COUNTER_BITS) - 1; i >= 0; --i)
 		printf("CT\t%d\t%ld\t%ld\t%.3f\n", i, (long)hist[i], (long)cnt[i], qs.adj_cnt[i]);
+	printf("FR\t%.3g\t%.3g\n", qs.fpr_lower, qs.fpr_upper);
 	printf("ER\t%ld\t%.3f\n", (long)qs.tot, qs.err);
 	printf("CV\t%.3f\n", qs.cov);
 	printf("QV\t%.3f\n", qs.qv);
