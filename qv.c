@@ -144,7 +144,7 @@ void yak_qopt_init(yak_qopt_t *opt)
 	opt->chunk_size = 1000000000;
 	opt->n_threads = 4;
 	opt->min_frac = 0.5;
-	opt->fpr = 0.00005;
+	opt->fpr = 0.00015;
 }
 
 int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double fpr, yak_qstat_t *qs)
