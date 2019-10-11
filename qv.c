@@ -144,7 +144,7 @@ void yak_qopt_init(yak_qopt_t *opt)
 	opt->chunk_size = 1000000000;
 	opt->n_threads = 4;
 	opt->min_frac = 0.5;
-	opt->fpr = 0.00015;
+	opt->fpr = 0.00004;
 }
 
 int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double fpr, yak_qstat_t *qs)
@@ -159,6 +159,7 @@ int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double fpr, 
 	qs->qv = -1.0, qs->err = cnt[0];
 	for (c = 0, qs->tot = 0; c < n_cnt; ++c)
 		qs->tot += cnt[c], qs->adj_cnt[c] = cnt[c];
+	qs->qv_raw = qs->tot > 0 && qs->tot > cnt[0]? -4.3429448190325175 * log(log((double)qs->tot / (qs->tot - cnt[0])) / kmer) : -1.0;
 
 	// find the max and the min
 	for (c = 2, max_cnt = 0, max_c = -1; c < n_cnt - 1; ++c)
@@ -177,13 +178,18 @@ int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double fpr, 
 
 	// find the lower bound (if possible)
 	qs->fpr_lower = 0.0;
-	if (min_c > 2) {
-		double e = (cnt[2] - cnt[min_c]) / (qs->cov * hist[c]);
+	if (min_c > 2 && hist[2] > hist[min_c]) {
+		double e = (cnt[2] - cnt[min_c]) / (qs->cov * (hist[2] - hist[min_c]));
 		if (qs->fpr_lower < e) qs->fpr_lower = e;
 	}
 	if (fpr < qs->fpr_lower) fpr = qs->fpr_lower;
 	if (qs->fpr_lower >= qs->fpr_upper)
 		fprintf(stderr, "Warning: the FPR upper bound is smaller than the lower bound. Trust the lower bound.\n");
+
+	// don't compute adjusted qv if the k-mer histogram is not derived from high-coverage data.
+	if (max_c <= 4) return -1;
+	n_ext = max_c - min_c + 1 < 8? max_c - min_c + 1 : 8;
+	if (n_ext < 3) return -1;
 
 	// compute adj_cnt[] in the range of [min_c, max_c)
 	for (c = max_c - 1; c >= min_c; --c) {
@@ -194,8 +200,6 @@ int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double fpr, 
 	}
 
 	// fit the tail
-	n_ext = max_c - min_c + 1 < 8? max_c - min_c + 1 : 8;
-	if (n_ext < 3) return -1;
 	for (k = 0; k < n_ext; ++k) {
 		x[k] = min_c + k;
 		y[k] = qs->adj_cnt[min_c + k + 1] / qs->adj_cnt[min_c + k];
@@ -229,7 +233,7 @@ int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double fpr, 
 		qs->adj_cnt[c] = qs->adj_cnt[c + 1] / r;
 	}
 
-	// compute qv
+	// compute adjusted qv
 	for (c = 0, adj_sum = 0.0; c < n_cnt; ++c)
 		adj_sum += qs->adj_cnt[c];
 	assert(adj_sum <= (double)qs->tot);

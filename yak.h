@@ -1,7 +1,7 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAK_VERSION "r25"
+#define YAK_VERSION "r26"
 
 #include <stdint.h>
 
@@ -28,7 +28,7 @@ typedef struct {
 
 typedef struct {
 	int64_t tot;
-	double qv, cov, err;
+	double qv_raw, qv, cov, err;
 	double fpr_lower, fpr_upper;
 	double adj_cnt[1<<YAK_COUNTER_BITS];
 } yak_qstat_t;

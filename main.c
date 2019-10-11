@@ -133,7 +133,7 @@ int main_qv(int argc, char *argv[])
 	printf("CC\tFR  fpr_lower_bound    fpr_upper_bound\n");
 	printf("CC\tER  total_input_kmers  adjusted_error_kmers\n");
 	printf("CC\tCV  coverage\n");
-	printf("CC\tQV  quality_value\n");
+	printf("CC\tQV  raw_quality_value  adjusted_quality_value\n");
 	printf("CC\n");
 	yak_qv(&opt, argv[o.ind+1], ch, cnt);
 	yak_qv_solve(hist, cnt, kmer, opt.fpr, &qs);
@@ -142,7 +142,7 @@ int main_qv(int argc, char *argv[])
 	printf("FR\t%.3g\t%.3g\n", qs.fpr_lower, qs.fpr_upper);
 	printf("ER\t%ld\t%.3f\n", (long)qs.tot, qs.err);
 	printf("CV\t%.3f\n", qs.cov);
-	printf("QV\t%.3f\n", qs.qv);
+	printf("QV\t%.3f\t%.3f\n", qs.qv_raw, qs.qv);
 	bfc_ch_destroy(ch);
 	return 0;
 }
