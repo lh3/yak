@@ -9,7 +9,7 @@
 int main_inspect(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int c, i, j, max_cnt = 10, kmer, l_pre, counter_bits, print_kmer = 0;
+	int c, i, j, max_cnt = 20, kmer, l_pre, counter_bits, print_kmer = 0;
 	uint32_t t[3];
 	int64_t *cnt = 0, tot[YAK_N_COUNTS], hist[YAK_N_COUNTS];
 	uint64_t mask;
@@ -109,7 +109,7 @@ int main_inspect(int argc, char *argv[])
 		for (i = YAK_N_COUNTS - 2; i >= 0; --i)
 			for (j = 0; j < YAK_N_COUNTS; ++j)
 				acc[i * YAK_N_COUNTS + j] += acc[(i+1) * YAK_N_COUNTS + j];
-		for (i = 1; i < YAK_N_COUNTS; ++i) {
+		for (i = max_cnt; i >= 1; --i) {
 			yak_qstat_t qs;
 			if (tot[i] == 0) continue;
 			yak_qv_solve(hist, &acc[i * YAK_N_COUNTS], kmer, fpr, &qs);
