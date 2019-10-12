@@ -25,3 +25,17 @@ cd yak && make
 # print k-mers (warning: large output)
 ./yak inspect -p sr.yak > sr.kmers
 ```
+
+## Introduction
+
+Yak is initially developed for two specific use cases: 1) to robustly estimate
+the base accuracy of CCS reads and assembly contigs, and 2) to investigate the
+systematic error rate of CCS reads. It achieves the goals by comparing
+sequences to the k-mer spectrum of short reads or by comparing spectra. No
+reference genome or truth data is needed.
+
+It is worth noting that estimating base accuracy is tricky. When the accuracy
+approaches Q50, both unsampled and erroneous k-mers in short reads may
+interfere with a naive estimator. Yak introduces an empirical model to address
+this issue. Its estimate is less affected by the coverage and the quality of
+short reads.
