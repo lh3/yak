@@ -13,7 +13,7 @@ LIBS=		-lm -lz -lpthread
 
 all:$(PROG)
 
-yak:$(OBJS) main.o inspect.o
+yak:$(OBJS) main.o inspect.o triobin.o
 		$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 
 clean:
@@ -33,3 +33,4 @@ kthread.o: kthread.h
 main.o: ketopt.h yak.h sys.h
 qv.o: kthread.h yak.h kmer.h bseq.h sys.h
 sys.o: sys.h
+triobin.o: yak.h ketopt.h

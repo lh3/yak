@@ -231,3 +231,48 @@ int bfc_ch_get_k(const bfc_ch_t *ch)
 {
 	return ch->k;
 }
+
+/**************************
+ * Specialized operations *
+ **************************/
+
+bfc_ch_t *bfc_ch_flag_restore(bfc_ch_t *ch0, const char *fn, int min_cnt, int flag)
+{
+	FILE *fp;
+	uint32_t t[3];
+	int i, j, absent;
+	uint64_t mask = (1ULL<<YAK_COUNTER_BITS) - 1, n_ins = 0, n_new = 0;
+	bfc_ch_t *ch;
+
+	if ((fp = fopen(fn, "rb")) == 0) return 0;
+	fread(t, 4, 3, fp);
+	if (t[2] != YAK_COUNTER_BITS) {
+		fprintf(stderr, "ERROR: saved counter bits: %d; compile-time counter bits: %d\n", t[2], YAK_COUNTER_BITS);
+		fclose(fp);
+		return 0;
+	}
+	ch = ch0 == 0? bfc_ch_init(t[0], t[1]) : ch0;
+	assert((int)t[0] == ch->k && (int)t[1] == ch->b_pre);
+	for (i = 0; i < 1<<ch->b_pre; ++i) {
+		cnthash_t *h = ch->h[i];
+		fread(t, 4, 2, fp);
+		if (ch0 == 0) kh_resize(cnt, h, t[0]);
+		for (j = 0; j < t[1]; ++j) {
+			uint64_t key;
+			int cnt;
+			khint_t k;
+			fread(&key, 8, 1, fp);
+			cnt = key & mask;
+			if (cnt >= min_cnt) {
+				++n_ins;
+				key = (key & ~mask) | flag;
+				k = kh_put(cnt, h, key, &absent);
+				if (absent) ++n_new;
+				else kh_key(h, k) |= flag;
+			}
+		}
+	}
+	fclose(fp);
+	fprintf(stderr, "[M::%s] inserted %ld k-mers, of which %ld are new\n", __func__, (long)n_ins, (long)n_new);
+	return ch;
+}

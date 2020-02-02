@@ -56,6 +56,7 @@ uint64_t bfc_ch_count(const bfc_ch_t *ch);
 int bfc_ch_hist(const bfc_ch_t *ch, int64_t cnt[1<<YAK_COUNTER_BITS]);
 int bfc_ch_dump(const bfc_ch_t *ch, const char *fn);
 bfc_ch_t *bfc_ch_restore(const char *fn);
+bfc_ch_t *bfc_ch_flag_restore(bfc_ch_t *ch0, const char *fn, int min_cnt, int flag);
 int bfc_ch_get_k(const bfc_ch_t *ch);
 
 int bfc_ch_kmer_occ(const bfc_ch_t *ch, const uint64_t z[2]);
