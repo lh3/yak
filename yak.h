@@ -1,7 +1,7 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAK_VERSION "r32"
+#define YAK_VERSION "r35"
 
 #include <stdint.h>
 
