@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <assert.h>
 #include "yak.h"
 #include "kmer.h"
@@ -236,13 +237,26 @@ int bfc_ch_get_k(const bfc_ch_t *ch)
  * Specialized operations *
  **************************/
 
-bfc_ch_t *bfc_ch_flag_restore(bfc_ch_t *ch0, const char *fn, int min_cnt, int flag)
+bfc_ch_t *bfc_ch_restore_core(bfc_ch_t *ch0, const char *fn, int mode, ...)
 {
+	va_list ap;
 	FILE *fp;
 	uint32_t t[3];
-	int i, j, absent;
+	int i, j, absent, min_cnt = 0, mid_cnt = 0, mode_err = 0;
 	uint64_t mask = (1ULL<<YAK_COUNTER_BITS) - 1, n_ins = 0, n_new = 0;
 	bfc_ch_t *ch;
+
+	va_start(ap, mode);
+	if (mode == YAK_LOAD_ALL) { // do nothing
+	} else if (mode == YAK_LOAD_TRIOBIN1 || mode == YAK_LOAD_TRIOBIN2) {
+		assert(YAK_COUNTER_BITS >= 4);
+		min_cnt = va_arg(ap, int);
+		mid_cnt = va_arg(ap, int);
+		if (ch0 == 0 && mode == YAK_LOAD_TRIOBIN2)
+			mode_err = 1;
+	} else mode_err = 1;
+	va_end(ap);
+	if (mode_err) return 0;
 
 	if ((fp = fopen(fn, "rb")) == 0) return 0;
 	fread(t, 4, 3, fp);
@@ -251,6 +265,7 @@ bfc_ch_t *bfc_ch_flag_restore(bfc_ch_t *ch0, const char *fn, int min_cnt, int fl
 		fclose(fp);
 		return 0;
 	}
+
 	ch = ch0 == 0? bfc_ch_init(t[0], t[1]) : ch0;
 	assert((int)t[0] == ch->k && (int)t[1] == ch->b_pre);
 	for (i = 0; i < 1<<ch->b_pre; ++i) {
@@ -259,16 +274,24 @@ bfc_ch_t *bfc_ch_flag_restore(bfc_ch_t *ch0, const char *fn, int min_cnt, int fl
 		if (ch0 == 0) kh_resize(cnt, h, t[0]);
 		for (j = 0; j < t[1]; ++j) {
 			uint64_t key;
-			int cnt;
-			khint_t k;
 			fread(&key, 8, 1, fp);
-			cnt = key & mask;
-			if (cnt >= min_cnt) {
+			if (mode == YAK_LOAD_ALL) {
 				++n_ins;
-				key = (key & ~mask) | flag;
-				k = kh_put(cnt, h, key, &absent);
+				kh_put(cnt, h, key, &absent);
 				if (absent) ++n_new;
-				else kh_key(h, k) |= flag;
+			} else if (mode == YAK_LOAD_TRIOBIN1 || mode == YAK_LOAD_TRIOBIN2) {
+				int cnt = key & mask, x, shift = mode == YAK_LOAD_TRIOBIN1? 0 : 2;
+				if (cnt >= mid_cnt) x = 2<<shift;
+				else if (cnt >= min_cnt) x = 1<<shift;
+				else x = -1;
+				if (x >= 0) {
+					khint_t k;
+					key = (key & ~mask) | x;
+					++n_ins;
+					k = kh_put(cnt, h, key, &absent);
+					if (absent) ++n_new;
+					else kh_key(h, k) = kh_key(h, k) | x;
+				}
 			}
 		}
 	}

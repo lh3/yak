@@ -10,7 +10,7 @@
 #define CHUNK_SIZE 200000000
 
 typedef struct {
-	int c[4];
+	int c[16];
 } tb_cnt_t;
 
 typedef struct {
@@ -75,7 +75,8 @@ static void *tb_pipeline(void *shared, int step, void *_data)
 		tb_step_t *s = (tb_step_t*)_data;
 		kt_for(aux->n_threads, tb_worker, s, s->n_seq);
 		for (i = 0; i < s->n_seq; ++i) {
-			printf("%s\t%d\t%d\t%d\t%d\n", s->seq[i].name, s->cnt[i].c[0], s->cnt[i].c[1], s->cnt[i].c[2], s->cnt[i].c[3]);
+			int *c = s->cnt[i].c;
+			printf("%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", s->seq[i].name, c[0], c[2<<2|2], c[0<<2|2], c[2<<2|0], c[1<<2|1], c[1<<2|2], c[2<<2|1], c[0<<2|1], c[1<<2|0]);
 			free(s->seq[i].name); free(s->seq[i].seq); free(s->seq[i].qual); free(s->seq[i].comment);
 		}
 		free(s->seq); free(s->cnt); free(s);
@@ -86,14 +87,15 @@ static void *tb_pipeline(void *shared, int step, void *_data)
 int main_triobin(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int c, min_cnt = 5;
+	int c, min_cnt = 2, mid_cnt = 5;
 	bfc_ch_t *ch;
 	tb_shared_t aux;
 
 	memset(&aux, 0, sizeof(tb_shared_t));
 	aux.n_threads = 8, aux.print_diff = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "c:t:p", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "c:d:t:p", 0)) >= 0) {
 		if (c == 'c') min_cnt = atoi(o.arg);
+		else if (c == 'd') mid_cnt = atoi(o.arg);
 		else if (c == 't') aux.n_threads = atoi(o.arg);
 		else if (c == 'p') aux.print_diff = 1;
 	}
@@ -101,12 +103,14 @@ int main_triobin(int argc, char *argv[])
 		fprintf(stderr, "Usage: yak triobin [options] <pat.yak> <mat.yak> <seq.fa>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -c INT     min occurrence [%d]\n", min_cnt);
+		fprintf(stderr, "  -d INT     mid occurrence [%d]\n", mid_cnt);
 		fprintf(stderr, "  -t INT     number of threads [%d]\n", aux.n_threads);
+		fprintf(stderr, "Output: ctg err strongMixed sPat sMat weakMixed wPat1 wMat1 wPat2 wMat2\n");
 		return 1;
 	}
 
-	ch = bfc_ch_flag_restore(0, argv[o.ind], min_cnt, 1);
-	ch = bfc_ch_flag_restore(ch, argv[o.ind + 1], min_cnt, 2);
+	ch = bfc_ch_restore_core(0,  argv[o.ind],     YAK_LOAD_TRIOBIN1, min_cnt, mid_cnt);
+	ch = bfc_ch_restore_core(ch, argv[o.ind + 1], YAK_LOAD_TRIOBIN2, min_cnt, mid_cnt);
 
 	aux.k = bfc_ch_get_k(ch);
 	aux.fp = bseq_open(argv[o.ind+2]);

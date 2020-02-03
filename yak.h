@@ -1,13 +1,17 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAK_VERSION "r36"
+#define YAK_VERSION "r37"
 
 #include <stdint.h>
 
 #define YAK_MAX_KMER     63
 #define YAK_COUNTER_BITS 8
 #define YAK_N_COUNTS     (1<<YAK_COUNTER_BITS)
+
+#define YAK_LOAD_ALL       1
+#define YAK_LOAD_TRIOBIN1  2
+#define YAK_LOAD_TRIOBIN2  3
 
 typedef struct {
 	int32_t bf_shift, bf_n_hashes;
@@ -56,7 +60,7 @@ uint64_t bfc_ch_count(const bfc_ch_t *ch);
 int bfc_ch_hist(const bfc_ch_t *ch, int64_t cnt[1<<YAK_COUNTER_BITS]);
 int bfc_ch_dump(const bfc_ch_t *ch, const char *fn);
 bfc_ch_t *bfc_ch_restore(const char *fn);
-bfc_ch_t *bfc_ch_flag_restore(bfc_ch_t *ch0, const char *fn, int min_cnt, int flag);
+bfc_ch_t *bfc_ch_restore_core(bfc_ch_t *ch0, const char *fn, int mode, ...);
 int bfc_ch_get_k(const bfc_ch_t *ch);
 
 int bfc_ch_kmer_occ(const bfc_ch_t *ch, const uint64_t z[2]);
