@@ -15,6 +15,8 @@ typedef struct {
 
 typedef struct {
 	int k, n_threads, print_diff;
+	int count_thres;
+	double ratio_thres;
 	bseq_file_t *fp;
 	const bfc_ch_t *ch;
 } tb_shared_t;
@@ -57,6 +59,20 @@ static void tb_worker(void *_data, long k, int tid)
 	}
 }
 
+static char tb_classify(const int *c, double ratio_thres, int count_thres)
+{
+	char type = '0';
+	if (c[0<<2|2] == c[2<<2|0]) { // equal counts
+		if (c[0<<2|2] == 0) type = '0';
+		else type = 'a';
+	} else {
+		if (c[0<<2|2] * ratio_thres >= c[2<<2|0] && c[0<<2|2] - c[2<<2|0] >= count_thres) type = 'p';
+		else if (c[2<<2|0] * ratio_thres >= c[0<<2|2] && c[2<<2|0] - c[0<<2|2] >= count_thres) type = 'm';
+		else type = 'a';
+	}
+	return type;
+}
+
 static void *tb_pipeline(void *shared, int step, void *_data)
 {
 	tb_shared_t *aux = (tb_shared_t*)shared;
@@ -76,7 +92,9 @@ static void *tb_pipeline(void *shared, int step, void *_data)
 		kt_for(aux->n_threads, tb_worker, s, s->n_seq);
 		for (i = 0; i < s->n_seq; ++i) {
 			int *c = s->cnt[i].c;
-			printf("%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", s->seq[i].name, c[0], c[2<<2|2], c[0<<2|2], c[2<<2|0], c[1<<2|1], c[1<<2|2], c[2<<2|1], c[0<<2|1], c[1<<2|0]);
+			char type;
+			type = tb_classify(c, aux->ratio_thres, aux->count_thres);
+			printf("%s\t%c\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", s->seq[i].name, type, c[0], c[2<<2|2], c[0<<2|2], c[2<<2|0], c[1<<2|1], c[1<<2|2], c[2<<2|1], c[0<<2|1], c[1<<2|0]);
 			free(s->seq[i].name); free(s->seq[i].seq); free(s->seq[i].qual); free(s->seq[i].comment);
 		}
 		free(s->seq); free(s->cnt); free(s);
@@ -93,11 +111,14 @@ int main_triobin(int argc, char *argv[])
 
 	memset(&aux, 0, sizeof(tb_shared_t));
 	aux.n_threads = 8, aux.print_diff = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "c:d:t:p", 0)) >= 0) {
+	aux.count_thres = 5, aux.ratio_thres = 0.2;
+	while ((c = ketopt(&o, argc, argv, 1, "c:d:t:pr:n:", 0)) >= 0) {
 		if (c == 'c') min_cnt = atoi(o.arg);
 		else if (c == 'd') mid_cnt = atoi(o.arg);
 		else if (c == 't') aux.n_threads = atoi(o.arg);
 		else if (c == 'p') aux.print_diff = 1;
+		else if (c == 'r') aux.ratio_thres = atof(o.arg);
+		else if (c == 'n') aux.count_thres = atoi(o.arg);
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: yak triobin [options] <pat.yak> <mat.yak> <seq.fa>\n");
