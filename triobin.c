@@ -90,15 +90,15 @@ static void tb_worker(void *_data, long k, int tid)
 	}
 }
 
-static char tb_classify(const int c[2], double ratio_thres, int count_thres)
+static char tb_classify(const int sc[2], const int c[2], double ratio_thres, int count_thres)
 {
 	char type = '0';
-	if (c[0<<2|2] == c[2<<2|0]) { // equal counts
-		if (c[0<<2|2] == 0) type = '0';
+	if (sc[0] == sc[1]) {
+		if (sc[0] == 0) type = '0';
 		else type = 'a';
 	} else {
-		if (c[0<<2|2] * ratio_thres >= c[2<<2|0] && c[0<<2|2] - c[2<<2|0] >= count_thres) type = 'p';
-		else if (c[2<<2|0] * ratio_thres >= c[0<<2|2] && c[2<<2|0] - c[0<<2|2] >= count_thres) type = 'm';
+		if (sc[0] * ratio_thres >= sc[1]) type = 'p';
+		else if (sc[1] * ratio_thres >= sc[0]) type = 'm';
 		else type = 'a';
 	}
 	return type;
@@ -124,8 +124,9 @@ static void *tb_pipeline(void *shared, int step, void *_data)
 		for (i = 0; i < s->n_seq; ++i) {
 			int *c = s->cnt[i].c;
 			char type;
-			type = tb_classify(c, aux->ratio_thres, aux->count_thres);
-			printf("%s\t%c\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", s->seq[i].name, type, s->cnt[i].sc[0], s->cnt[i].sc[1], c[0], c[2<<2|2], c[0<<2|2], c[2<<2|0], c[1<<2|1], c[1<<2|2], c[2<<2|1], c[0<<2|1], c[1<<2|0]);
+			type = tb_classify(s->cnt[i].sc, c, aux->ratio_thres, aux->count_thres);
+			printf("%s\t%c\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", s->seq[i].name, type, s->cnt[i].sc[0], s->cnt[i].sc[1],
+				   c[0], c[2<<2|2], c[0<<2|2], c[2<<2|0], c[1<<2|1], c[0<<2|1], c[1<<2|0], c[1<<2|2], c[2<<2|1]);
 			free(s->seq[i].name); free(s->seq[i].seq); free(s->seq[i].qual); free(s->seq[i].comment);
 		}
 		free(s->seq); free(s->cnt); free(s);
