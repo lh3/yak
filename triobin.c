@@ -52,8 +52,8 @@ static void tb_worker(void *_data, long k, int tid)
 			if (++l >= aux->k) {
 				flag = tb_count(aux, &x);
 				++t->cnt[k].c[flag];
-				if (aux->print_diff && (flag == 1 || flag == 2))
-					printf("D\t%s\t%d\t%d\n", s->name, i, flag);
+				if (aux->print_diff && (flag>>2&3) != (flag&3))
+					printf("D\t%s\t%d\t%d\t%d\n", s->name, i, flag&3, flag>>2&3);
 			}
 		} else l = 0, x = bfc_kmer_null;
 	}
