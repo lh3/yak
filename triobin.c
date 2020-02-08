@@ -19,12 +19,12 @@ typedef struct {
 } tb_cnt_t;
 
 typedef struct {
-	int max, *c;
+	int max;
+	uint32_t *s;
 } tb_buf_t;
 
 typedef struct {
 	int k, n_threads, print_diff;
-	int count_thres;
 	double ratio_thres;
 	bseq_file_t *fp;
 	const bfc_ch_t *ch;
@@ -59,9 +59,9 @@ static void tb_worker(void *_data, long k, int tid)
 	if (s->l_seq > b->max) {
 		b->max = s->l_seq;
 		kroundup32(b->max);
-		b->c = (int*)realloc(b->c, b->max * sizeof(int));
+		b->s = (uint32_t*)realloc(b->s, b->max * sizeof(uint32_t));
 	}
-	memset(b->c, 0, s->l_seq * sizeof(int));
+	memset(b->s, 0, s->l_seq * sizeof(uint32_t));
 	for (i = l = 0; i < s->l_seq; ++i) {
 		int flag, c = seq_nt6_table[(uint8_t)s->seq[i]] - 1;
 		if (c < 4) {
@@ -72,39 +72,37 @@ static void tb_worker(void *_data, long k, int tid)
 				c1 = flag&3, c2 = flag>>2&3;
 				if (c1 == 2 && c2 == 0) type = 1;
 				else if (c2 == 2 && c1 == 0) type = 2;
-				if (type) {
-					int j, c = type == 1? 1 : 1<<16;
-					for (j = i - aux->k + 1; j <= i; ++j)
-						b->c[j] += c;
-				}
+				b->s[i] = type;
 				++t->cnt[k].c[flag];
 				if (aux->print_diff && (flag>>2&3) != (flag&3))
 					printf("D\t%s\t%d\t%d\t%d\n", s->name, i, flag&3, flag>>2&3);
 			}
 		} else l = 0, x = bfc_kmer_null;
 	}
-	for (i = 0; i < s->l_seq; ++i) {
-		int c1 = b->c[i]&0xffff, c2 = b->c[i]>>16&0xffff;
-		if (c1 > aux->k>>1 && c2 == 0) ++t->cnt[k].sc[0];
-		else if (c2 > aux->k>>1 && c1 == 0) ++t->cnt[k].sc[1];
+	for (l = 0, i = 1; i <= s->l_seq; ++i) {
+		if (i == s->l_seq || b->s[i] != b->s[l]) {
+			if (b->s[l] > 0 && i - l >= aux->k - 2)
+				t->cnt[k].sc[b->s[l] - 1] += i - l;
+			l = i;
+		}
 	}
 }
 
-static char tb_classify(const int sc[2], const int c[2], int k, double ratio_thres, int count_thres)
+static char tb_classify(const int sc[2], const int *c, int k, double ratio_thres)
 {
-	char type = '0';
-	if (sc[0] == sc[1]) {
-		if (sc[0] == 0) type = '0';
-		else type = 'a';
-	} else if (sc[0] < k && sc[1] < k) {
+	char type;
+	if (sc[0] == 0 && sc[1] == 0) {
+		type = '0';
+	} else if (sc[0] > k && sc[1] > k) {
 		type = 'a';
+	} else if (sc[0] == sc[1]) {
+		type = 'a';
+	} else if (sc[0] > sc[1] && sc[0] * ratio_thres > c[2<<2|0] + c[1<<2|0] && sc[0] >= k - 2 + c[2<<2|0]) {
+		type = 'p';
+	} else if (sc[1] > sc[0] && sc[1] * ratio_thres > c[0<<2|2] + c[0<<2|1] && sc[1] >= k - 2 + c[0<<2|2]) {
+		type = 'm';
 	} else {
-		int x[2];
-		x[0] = c[0<<2|2] + c[0<<2|1]/2;
-		x[1] = c[2<<2|0] + c[1<<2|0]/2;
-		if (sc[0] * ratio_thres >= sc[1] && x[0] * 0.5 > x[1]) type = 'p';
-		else if (sc[1] * ratio_thres >= sc[0] && x[1] * 0.5 > x[0]) type = 'm';
-		else type = 'a';
+		type = 'a';
 	}
 	return type;
 }
@@ -129,9 +127,9 @@ static void *tb_pipeline(void *shared, int step, void *_data)
 		for (i = 0; i < s->n_seq; ++i) {
 			int *c = s->cnt[i].c;
 			char type;
-			type = tb_classify(s->cnt[i].sc, c, aux->k, aux->ratio_thres, aux->count_thres);
+			type = tb_classify(s->cnt[i].sc, c, aux->k, aux->ratio_thres);
 			printf("%s\t%c\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", s->seq[i].name, type, s->cnt[i].sc[0], s->cnt[i].sc[1],
-				   c[0], c[2<<2|2], c[0<<2|2], c[2<<2|0], c[1<<2|1], c[0<<2|1], c[1<<2|0], c[1<<2|2], c[2<<2|1]);
+				   c[0<<2|2], c[2<<2|0], c[0<<2|1], c[1<<2|0], c[2<<2|2], c[1<<2|1], c[0], c[1<<2|2], c[2<<2|1]);
 			free(s->seq[i].name); free(s->seq[i].seq); free(s->seq[i].qual); free(s->seq[i].comment);
 		}
 		free(s->seq); free(s->cnt); free(s);
@@ -148,14 +146,13 @@ int main_triobin(int argc, char *argv[])
 
 	memset(&aux, 0, sizeof(tb_shared_t));
 	aux.n_threads = 8, aux.print_diff = 0;
-	aux.count_thres = 5, aux.ratio_thres = 0.2;
-	while ((c = ketopt(&o, argc, argv, 1, "c:d:t:pr:n:", 0)) >= 0) {
+	aux.ratio_thres = 0.2;
+	while ((c = ketopt(&o, argc, argv, 1, "c:d:t:pr:", 0)) >= 0) {
 		if (c == 'c') min_cnt = atoi(o.arg);
 		else if (c == 'd') mid_cnt = atoi(o.arg);
 		else if (c == 't') aux.n_threads = atoi(o.arg);
 		else if (c == 'p') aux.print_diff = 1;
 		else if (c == 'r') aux.ratio_thres = atof(o.arg);
-		else if (c == 'n') aux.count_thres = atoi(o.arg);
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: yak triobin [options] <pat.yak> <mat.yak> <seq.fa>\n");
@@ -177,7 +174,7 @@ int main_triobin(int argc, char *argv[])
 	kt_pipeline(2, tb_pipeline, &aux, 2);
 	bseq_close(aux.fp);
 	bfc_ch_destroy(ch);
-	for (i = 0; i < aux.n_threads; ++i) free(aux.buf[i].c);
+	for (i = 0; i < aux.n_threads; ++i) free(aux.buf[i].s);
 	free(aux.buf);
 	return 0;
 }
