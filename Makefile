@@ -19,7 +19,7 @@ endif
 
 all:$(PROG)
 
-yaks:$(OBJS) main.o
+yak:$(OBJS) main.o
 		$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 
 clean:
