@@ -1,12 +1,12 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAKS_VERSION "r44"
+#define YAKS_VERSION "r46"
 
 #include <stdint.h>
 
 #define YAK_MAX_KMER     31
-#define YAK_COUNTER_BITS 8
+#define YAK_COUNTER_BITS 10
 #define YAK_N_COUNTS     (1<<YAK_COUNTER_BITS)
 #define YAK_MAX_COUNT    ((1<<YAK_COUNTER_BITS)-1)
 

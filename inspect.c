@@ -11,7 +11,6 @@ int main_inspect(int argc, char *argv[])
 	int c, i, j, max_cnt = 20, kmer, l_pre, counter_bits;
 	uint32_t t[3];
 	int64_t *cnt = 0, tot[YAK_N_COUNTS], hist[YAK_N_COUNTS];
-	uint64_t mask;
 	FILE *fp;
 	double fpr = 0.00004;
 	yak_ch_t *ch = 0;
@@ -44,7 +43,6 @@ int main_inspect(int argc, char *argv[])
 	fread(t, 4, 3, fp);
 	kmer = t[0], l_pre = t[1], counter_bits = t[2];
 	assert(counter_bits == YAK_COUNTER_BITS);
-	mask = (1ULL<<kmer) - 1;
 
 	for (i = 0; i < 1<<l_pre; ++i) {
 		fread(t, 4, 2, fp);

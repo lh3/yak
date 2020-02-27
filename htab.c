@@ -126,7 +126,7 @@ static void worker_hist(void *data, long i, int tid) // callback for kt_for()
 	khint_t k;
 	for (k = 0; k < kh_end(g); ++k)
 		if (kh_exist(g, k))
-			++cnt[kh_key(g, k)&0xff];
+			++cnt[kh_key(g, k)&YAK_MAX_COUNT];
 }
 
 void yak_ch_hist(const yak_ch_t *h, int64_t cnt[YAK_N_COUNTS], int n_thread)
