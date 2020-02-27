@@ -50,7 +50,7 @@ int main_inspect(int argc, char *argv[])
 			uint64_t key;
 			int cnt0;
 			fread(&key, 8, 1, fp);
-			cnt0 = key & ((1<<YAK_COUNTER_BITS) - 1);
+			cnt0 = key & YAK_MAX_COUNT;
 			++tot[cnt0];
 			if (ch) {
 				int cnt1;

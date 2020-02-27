@@ -41,6 +41,7 @@ void yak_ch_destroy_bf(yak_ch_t *h)
 void yak_ch_destroy(yak_ch_t *h)
 {
 	int i;
+	if (h == 0) return;
 	yak_ch_destroy_bf(h);
 	for (i = 0; i < 1<<h->pre; ++i)
 		yak_ht_destroy(h->h[i].h);

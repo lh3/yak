@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  count     count k-mers\n");
 		fprintf(stderr, "  qv        evaluate quality values\n");
 		fprintf(stderr, "  triobin   trio binning\n");
-		fprintf(stderr, "  inspect k-mer hash tables\n");
+		fprintf(stderr, "  inspect   k-mer hash tables\n");
 		fprintf(stderr, "  version   print version number\n");
 		return 1;
 	}
