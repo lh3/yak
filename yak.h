@@ -1,23 +1,29 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAK_VERSION "r43"
+#define YAKS_VERSION "r44"
 
 #include <stdint.h>
 
-#define YAK_MAX_KMER     63
+#define YAK_MAX_KMER     31
 #define YAK_COUNTER_BITS 8
 #define YAK_N_COUNTS     (1<<YAK_COUNTER_BITS)
+#define YAK_MAX_COUNT    ((1<<YAK_COUNTER_BITS)-1)
+
+#define YAK_BLK_SHIFT  9 // 64 bytes, the size of a cache line
+#define YAK_BLK_MASK   ((1<<(YAK_BLK_SHIFT)) - 1)
 
 #define YAK_LOAD_ALL       1
 #define YAK_LOAD_TRIOBIN1  2
 #define YAK_LOAD_TRIOBIN2  3
 
+#define YAK_MAGIC "YAK\2"
+
 typedef struct {
-	int32_t bf_shift, bf_n_hashes;
+	int32_t bf_shift, bf_n_hash;
 	int32_t k;
-	int32_t b_pre;
-	int32_t n_threads;
+	int32_t pre;
+	int32_t n_thread;
 	int64_t chunk_size;
 } yak_copt_t;
 
@@ -37,32 +43,50 @@ typedef struct {
 	double adj_cnt[1<<YAK_COUNTER_BITS];
 } yak_qstat_t;
 
-extern int yak_verbose;
+typedef struct {
+	int n_shift, n_hashes;
+	uint8_t *b;
+} yak_bf_t;
 
-struct bfc_ch_s;
-typedef struct bfc_ch_s bfc_ch_t;
+struct yak_ht_t;
+
+typedef struct {
+	struct yak_ht_t *h;
+	yak_bf_t *b;
+} yak_ch1_t;
+
+typedef struct {
+	int k, pre, n_hash, n_shift;
+	uint64_t tot;
+	yak_ch1_t *h;
+} yak_ch_t;
+
+extern int yak_verbose;
+extern unsigned char seq_nt4_table[256];
 
 void yak_copt_init(yak_copt_t *opt);
-bfc_ch_t *bfc_count(const char *fn, const yak_copt_t *opt, bfc_ch_t *ch0);
+
+yak_bf_t *yak_bf_init(int n_shift, int n_hashes);
+void yak_bf_destroy(yak_bf_t *b);
+int yak_bf_insert(yak_bf_t *b, uint64_t hash);
+
+yak_ch_t *yak_ch_init(int k, int pre, int n_hash, int n_shift);
+void yak_ch_destroy(yak_ch_t *h);
+void yak_ch_destroy_bf(yak_ch_t *h);
+int yak_ch_insert_list(yak_ch_t *h, int create_new, int n, const uint64_t *a);
+int yak_ch_get(const yak_ch_t *h, uint64_t x);
+
+void yak_ch_clear(yak_ch_t *h, int n_thread);
+void yak_ch_hist(const yak_ch_t *h, int64_t cnt[YAK_N_COUNTS], int n_thread);
+void yak_ch_shrink(yak_ch_t *h, int min, int max, int n_thread);
+int yak_ch_dump(const yak_ch_t *h, const char *fn);
+yak_ch_t *yak_ch_restore(const char *fn);
+yak_ch_t *yak_ch_restore_core(yak_ch_t *ch0, const char *fn, int mode, ...);
+
+yak_ch_t *yak_count(const char *fn, const yak_copt_t *opt, yak_ch_t *h0);
 
 void yak_qopt_init(yak_qopt_t *opt);
-void yak_qv(const yak_qopt_t *opt, const char *fn, const bfc_ch_t *ch, int64_t *cnt);
+void yak_qv(const yak_qopt_t *opt, const char *fn, const yak_ch_t *ch, int64_t *cnt);
 int yak_qv_solve(const int64_t *hist, const int64_t *cnt, int kmer, double fpr, yak_qstat_t *qs);
-
-bfc_ch_t *bfc_ch_init(int k, int l_pre);
-void bfc_ch_destroy(bfc_ch_t *ch);
-int bfc_ch_insert(bfc_ch_t *ch, const uint64_t x[2], int forced, int old_only);
-int bfc_ch_get(const bfc_ch_t *ch, const uint64_t x[2]);
-int bfc_ch_get_direct(const bfc_ch_t *ch, int pre, uint64_t key);
-void bfc_ch_reset(bfc_ch_t *ch);
-int64_t bfc_ch_del2(bfc_ch_t *ch);
-uint64_t bfc_ch_count(const bfc_ch_t *ch);
-int bfc_ch_hist(const bfc_ch_t *ch, int64_t cnt[1<<YAK_COUNTER_BITS]);
-int bfc_ch_dump(const bfc_ch_t *ch, const char *fn);
-bfc_ch_t *bfc_ch_restore(const char *fn);
-bfc_ch_t *bfc_ch_restore_core(bfc_ch_t *ch0, const char *fn, int mode, ...);
-int bfc_ch_get_k(const bfc_ch_t *ch);
-
-int bfc_ch_kmer_occ(const bfc_ch_t *ch, const uint64_t z[2]);
 
 #endif

@@ -3,9 +3,8 @@
 #include <string.h>
 #include "kthread.h"
 #include "ketopt.h"
-#include "kmer.h"
 #include "bseq.h"
-#include "yak.h"
+#include "yak-priv.h"
 
 #ifndef kroundup32
 #define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
@@ -27,7 +26,7 @@ typedef struct {
 	int k, n_threads, print_diff;
 	double ratio_thres;
 	bseq_file_t *fp;
-	const bfc_ch_t *ch;
+	const yak_ch_t *ch;
 	tb_buf_t *buf;
 } tb_shared_t;
 
@@ -38,37 +37,31 @@ typedef struct {
 	tb_cnt_t *cnt;
 } tb_step_t;
 
-static inline int tb_count(tb_shared_t *aux, const bfc_kmer_t *x)
-{
-	int c;
-	uint64_t y[2];
-	bfc_kmer_hash(aux->k, x->x, y);
-	c = bfc_ch_get(aux->ch, y);
-	return c < 0? 0 : c;
-}
-
 static void tb_worker(void *_data, long k, int tid)
 {
-	extern bfc_kmer_t bfc_kmer_null;
 	tb_step_t *t = (tb_step_t*)_data;
 	tb_shared_t *aux = t->aux;
 	bseq1_t *s = &t->seq[k];
-	bfc_kmer_t x = bfc_kmer_null;
 	tb_buf_t *b = &aux->buf[tid];
-	int i, l;
+	uint64_t x[2], mask = (1ULL<<2*aux->ch->k) - 1;
+	int i, l, shift = 2 * (aux->ch->k - 1);
 	if (s->l_seq > b->max) {
 		b->max = s->l_seq;
 		kroundup32(b->max);
 		b->s = (uint32_t*)realloc(b->s, b->max * sizeof(uint32_t));
 	}
 	memset(b->s, 0, s->l_seq * sizeof(uint32_t));
-	for (i = l = 0; i < s->l_seq; ++i) {
-		int flag, c = seq_nt6_table[(uint8_t)s->seq[i]] - 1;
+	for (i = l = 0, x[0] = x[1] = 0; i < s->l_seq; ++i) {
+		int flag, c = seq_nt4_table[(uint8_t)s->seq[i]];
 		if (c < 4) {
-			bfc_kmer_append(aux->k, x.x, c);
+			x[0] = (x[0] << 2 | c) & mask;
+			x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;
 			if (++l >= aux->k) {
 				int type = 0, c1, c2;
-				flag = tb_count(aux, &x);
+				uint64_t y = x[0] < x[1]? x[0] : x[1];
+				y = yak_hash64(y, mask);
+				flag = yak_ch_get(aux->ch, y);
+				if (flag < 0) flag = 0;
 				c1 = flag&3, c2 = flag>>2&3;
 				if (c1 == 2 && c2 == 0) type = 1;
 				else if (c2 == 2 && c1 == 0) type = 2;
@@ -77,7 +70,7 @@ static void tb_worker(void *_data, long k, int tid)
 				if (aux->print_diff && (flag>>2&3) != (flag&3))
 					printf("D\t%s\t%d\t%d\t%d\n", s->name, i, flag&3, flag>>2&3);
 			}
-		} else l = 0, x = bfc_kmer_null;
+		} else l = 0, x[0] = x[1] = 0;
 	}
 	for (l = 0, i = 1; i <= s->l_seq; ++i) {
 		if (i == s->l_seq || b->s[i] != b->s[l]) {
@@ -140,8 +133,8 @@ static void *tb_pipeline(void *shared, int step, void *_data)
 int main_triobin(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int i, c, min_cnt = 2, mid_cnt = 5;
-	bfc_ch_t *ch;
+	int i, c, min_cnt = 5, mid_cnt = 15;
+	yak_ch_t *ch;
 	tb_shared_t aux;
 
 	memset(&aux, 0, sizeof(tb_shared_t));
@@ -164,16 +157,16 @@ int main_triobin(int argc, char *argv[])
 		return 1;
 	}
 
-	ch = bfc_ch_restore_core(0,  argv[o.ind],     YAK_LOAD_TRIOBIN1, min_cnt, mid_cnt);
-	ch = bfc_ch_restore_core(ch, argv[o.ind + 1], YAK_LOAD_TRIOBIN2, min_cnt, mid_cnt);
+	ch = yak_ch_restore_core(0,  argv[o.ind],     YAK_LOAD_TRIOBIN1, min_cnt, mid_cnt);
+	ch = yak_ch_restore_core(ch, argv[o.ind + 1], YAK_LOAD_TRIOBIN2, min_cnt, mid_cnt);
 
-	aux.k = bfc_ch_get_k(ch);
+	aux.k = ch->k;
 	aux.fp = bseq_open(argv[o.ind+2]);
 	aux.ch = ch;
 	aux.buf = (tb_buf_t*)calloc(aux.n_threads, sizeof(tb_buf_t));
 	kt_pipeline(2, tb_pipeline, &aux, 2);
 	bseq_close(aux.fp);
-	bfc_ch_destroy(ch);
+	yak_ch_destroy(ch);
 	for (i = 0; i < aux.n_threads; ++i) free(aux.buf[i].s);
 	free(aux.buf);
 	return 0;

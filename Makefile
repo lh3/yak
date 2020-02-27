@@ -1,19 +1,25 @@
-CC=			gcc
 CFLAGS=		-g -Wall -O2
 CPPFLAGS=
 INCLUDES=	
-OBJS=		kthread.o sys.o bseq.o bbf.o htab.o count.o qv.o 6gjdn.o
+OBJS=		kthread.o bbf.o htab.o bseq.o misc.o sys.o 6gjdn.o \
+			count.o qv.o triobin.o inspect.o
 PROG=		yak
 LIBS=		-lm -lz -lpthread
 
+ifneq ($(asan),)
+	CFLAGS+=-fsanitize=address
+	LIBS+=-fsanitize=address
+endif
+
 .SUFFIXES:.c .o
+.PHONY:all clean depend
 
 .c.o:
 		$(CC) -c $(CFLAGS) $(CPPFLAGS) $(INCLUDES) $< -o $@
 
 all:$(PROG)
 
-yak:$(OBJS) main.o inspect.o triobin.o
+yaks:$(OBJS) main.o
 		$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 
 clean:
@@ -24,13 +30,14 @@ depend:
 
 # DO NOT DELETE
 
-bbf.o: bbf.h
+bbf.o: yak.h
 bseq.o: bseq.h kseq.h
-count.o: kthread.h yak.h bbf.h kmer.h bseq.h sys.h
-htab.o: yak.h kmer.h khash.h
-inspect.o: ketopt.h kmer.h yak.h
+count.o: kthread.h yak-priv.h yak.h kseq.h
+htab.o: kthread.h yak-priv.h yak.h khashl.h
+inspect.o: ketopt.h yak-priv.h yak.h
 kthread.o: kthread.h
-main.o: ketopt.h yak.h sys.h
-qv.o: kthread.h yak.h kmer.h bseq.h sys.h
-sys.o: sys.h
-triobin.o: yak.h ketopt.h
+main.o: ketopt.h yak-priv.h yak.h
+misc.o: yak-priv.h yak.h
+qv.o: kthread.h yak-priv.h yak.h bseq.h
+sys.o: yak-priv.h yak.h
+triobin.o: kthread.h ketopt.h bseq.h yak-priv.h yak.h

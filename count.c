@@ -1,159 +1,145 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "kthread.h"
-#include "yak.h"
-#include "bbf.h"
-#include "kmer.h"
-#include "bseq.h"
-#include "sys.h"
+#include <stdint.h>
+#include <zlib.h>
+#include <assert.h>
+#include "kthread.h" // multi-threading models: pipeline and multi-threaded for loop
+#include "yak-priv.h"
 
-/* A note on multi-threading
-
-   The bloom filter is always the same regardless of how many threads in use.
-   However, the k-mer inserted to the hash table may be slightly different.
-   Suppose k-mers A and B are both singletons and that if A is inserted first,
-   B is a false positive and gets inserted to the hash table. In the
-   multi-threading mode, nonetheless, B may be inserted before A. In this case,
-   B is not a false positive any more. This is not a bug. The k-mers put into
-   the hash table depends on the order of input.
-*/
-
-#define CNT_BUF_SIZE 256
-
-bfc_kmer_t bfc_kmer_null = {{0,0,0,0}};
-
-typedef struct { // cache to reduce locking
-	uint64_t y[2];
-} insbuf_t;
+#include "kseq.h" // FASTA/Q parser
+KSEQ_INIT(gzFile, gzread)
 
 typedef struct {
-	const yak_copt_t *opt;
-	bseq_file_t *ks;
-	bfc_bf_t *bf;
-	bfc_ch_t *ch;
-	int old_only, *n_buf;
-	insbuf_t **buf;
-} cnt_shared_t;
+	int n, m;
+	uint64_t n_ins;
+	uint64_t *a;
+} ch_buf_t;
 
-typedef struct {
-	int n_seqs;
-	bseq1_t *seqs;
-	cnt_shared_t *cs;
-} cnt_step_t;
-
-static int bfc_kmer_bufclear(cnt_shared_t *cs, int forced, int tid)
+static inline void ch_insert_buf(ch_buf_t *buf, int p, uint64_t y) // insert a k-mer $y to a linear buffer
 {
-	int i, k, r;
-	if (cs->ch == 0) return 0;
-	for (i = k = 0; i < cs->n_buf[tid]; ++i) {
-		r = bfc_ch_insert(cs->ch, cs->buf[tid][i].y, forced, cs->old_only);
-		if (r < 0) cs->buf[tid][k++] = cs->buf[tid][i];
+	int pre = y & ((1<<p) - 1);
+	ch_buf_t *b = &buf[pre];
+	if (b->n == b->m) {
+		b->m = b->m < 8? 8 : b->m + (b->m>>1);
+		REALLOC(b->a, b->m);
 	}
-	cs->n_buf[tid] = k;
-	return k;
+	b->a[b->n++] = y;
 }
 
-static void bfc_kmer_insert(cnt_shared_t *cs, const bfc_kmer_t *x, int tid)
+static void count_seq_buf(ch_buf_t *buf, int k, int p, int len, const char *seq) // insert k-mers in $seq to linear buffer $buf
 {
-	int k = cs->opt->k, ret;
-	uint64_t y[2], hash;
-	hash = bfc_kmer_hash(k, x->x, y);
-	ret = cs->bf? bfc_bf_insert(cs->bf, hash) : cs->opt->bf_n_hashes;
-	if (ret == cs->opt->bf_n_hashes) {
-		if (cs->ch && bfc_ch_insert(cs->ch, y, 0, cs->old_only) < 0) { // counting with a hash table
-			insbuf_t *p;
-			if (bfc_kmer_bufclear(cs, 0, tid) == CNT_BUF_SIZE)
-				bfc_kmer_bufclear(cs, 1, tid);
-			p = &cs->buf[tid][cs->n_buf[tid]++];
-			p->y[0] = y[0], p->y[1] = y[1];
-		}
-	}
-}
-
-static void worker_count(void *_data, long k, int tid)
-{
-	cnt_step_t *data = (cnt_step_t*)_data;
-	cnt_shared_t *cs = data->cs;
-	bseq1_t *s = &data->seqs[k];
-	const yak_copt_t *o = cs->opt;
 	int i, l;
-	bfc_kmer_t x = bfc_kmer_null;
-	for (i = l = 0; i < s->l_seq; ++i) {
-		int c = seq_nt6_table[(uint8_t)s->seq[i]] - 1;
-		if (c < 4) {
-			bfc_kmer_append(o->k, x.x, c);
-			if (++l >= o->k) bfc_kmer_insert(cs, &x, tid);
-		} else l = 0, x = bfc_kmer_null;
+	uint64_t x[2], mask = (1ULL<<k*2) - 1, shift = (k - 1) * 2;
+	for (i = l = 0, x[0] = x[1] = 0; i < len; ++i) {
+		int c = seq_nt4_table[(uint8_t)seq[i]];
+		if (c < 4) { // not an "N" base
+			x[0] = (x[0] << 2 | c) & mask;                  // forward strand
+			x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;  // reverse strand
+			if (++l >= k) { // we find a k-mer
+				uint64_t y = x[0] < x[1]? x[0] : x[1];
+				ch_insert_buf(buf, p, yak_hash64(y, mask));
+			}
+		} else l = 0, x[0] = x[1] = 0; // if there is an "N", restart
 	}
 }
 
-static void *bfc_count_cb(void *shared, int step, void *_data)
+typedef struct { // global data structure for kt_pipeline()
+	const yak_copt_t *opt;
+	int create_new;
+	kseq_t *ks;
+	yak_ch_t *h;
+} pldat_t;
+
+typedef struct { // data structure for each step in kt_pipeline()
+	pldat_t *p;
+	int n, m, sum_len, nk;
+	int *len;
+	char **seq;
+	ch_buf_t *buf;
+} stepdat_t;
+
+static void worker_for(void *data, long i, int tid) // callback for kt_for()
 {
-	cnt_shared_t *cs = (cnt_shared_t*)shared;
-	if (step == 0) {
-		cnt_step_t *ret;
-		ret = calloc(1, sizeof(cnt_step_t));
-		ret->seqs = bseq_read(cs->ks, cs->opt->chunk_size, 0, &ret->n_seqs);
-		ret->cs = cs;
-		fprintf(stderr, "[M::%s] read %d sequences\n", __func__, ret->n_seqs);
-		if (ret->seqs) return ret;
-		else free(ret);
-	} else if (step == 1) {
-		int i;
-		double rt, eff;
-		cnt_step_t *data = (cnt_step_t*)_data;
-		kt_for(cs->opt->n_threads, worker_count, data, data->n_seqs);
-		rt = yak_realtime();
-		eff = yak_cputime() / (rt + 1e-6);
-		fprintf(stderr, "[M::%s@%.2f*%.2f] processed %d sequences; # keys in the hash table: %ld\n",
-				__func__, rt, eff, data->n_seqs, (long)bfc_ch_count(cs->ch));
-		for (i = 0; i < cs->opt->n_threads; ++i)
-			bfc_kmer_bufclear(cs, 1, i);
-		for (i = 0; i < data->n_seqs; ++i) {
-			bseq1_t *s = &data->seqs[i];
-			free(s->seq); free(s->qual); free(s->comment); free(s->name);
+	stepdat_t *s = (stepdat_t*)data;
+	ch_buf_t *b = &s->buf[i];
+	yak_ch_t *h = s->p->h;
+	b->n_ins += yak_ch_insert_list(h, s->p->create_new, b->n, b->a);
+}
+
+static void *worker_pipeline(void *data, int step, void *in) // callback for kt_pipeline()
+{
+	pldat_t *p = (pldat_t*)data;
+	if (step == 0) { // step 1: read a block of sequences
+		int ret;
+		stepdat_t *s;
+		CALLOC(s, 1);
+		s->p = p;
+		while ((ret = kseq_read(p->ks)) >= 0) {
+			int l = p->ks->seq.l;
+			if (l < p->opt->k) continue;
+			if (s->n == s->m) {
+				s->m = s->m < 16? 16 : s->m + (s->n>>1);
+				REALLOC(s->len, s->m);
+				REALLOC(s->seq, s->m);
+			}
+			MALLOC(s->seq[s->n], l);
+			memcpy(s->seq[s->n], p->ks->seq.s, l);
+			s->len[s->n++] = l;
+			s->sum_len += l;
+			s->nk += l - p->opt->k + 1;
+			if (s->sum_len >= p->opt->chunk_size)
+				break;
 		}
-		free(data->seqs); free(data);
+		if (s->sum_len == 0) free(s);
+		else return s;
+	} else if (step == 1) { // step 2: extract k-mers
+		stepdat_t *s = (stepdat_t*)in;
+		int i, n = 1<<p->opt->pre, m;
+		CALLOC(s->buf, n);
+		m = (int)(s->nk * 1.2 / n) + 1;
+		for (i = 0; i < n; ++i) {
+			s->buf[i].m = m;
+			MALLOC(s->buf[i].a, m);
+		}
+		for (i = 0; i < s->n; ++i) {
+			count_seq_buf(s->buf, p->opt->k, p->opt->pre, s->len[i], s->seq[i]);
+			free(s->seq[i]);
+		}
+		free(s->seq); free(s->len);
+		return s;
+	} else if (step == 2) { // step 3: insert k-mers to hash table
+		stepdat_t *s = (stepdat_t*)in;
+		int i, n = 1<<p->opt->pre;
+		uint64_t n_ins = 0;
+		kt_for(p->opt->n_thread, worker_for, s, n);
+		for (i = 0; i < n; ++i) {
+			n_ins += s->buf[i].n_ins;
+			free(s->buf[i].a);
+		}
+		p->h->tot += n_ins;
+		free(s->buf);
+		fprintf(stderr, "[M::%s::%.3f*%.2f] processed %d sequences; %ld distinct k-mers in the hash table\n", __func__,
+				yak_realtime(), yak_cputime() / yak_realtime(), s->n, (long)p->h->tot);
+		free(s);
 	}
 	return 0;
 }
 
-bfc_ch_t *bfc_count(const char *fn, const yak_copt_t *opt, bfc_ch_t *ch0)
+yak_ch_t *yak_count(const char *fn, const yak_copt_t *opt, yak_ch_t *h0)
 {
-	cnt_shared_t cs;
-	bfc_ch_t *ret = 0;
-	int i;
-	memset(&cs, 0, sizeof(cnt_shared_t));
-	cs.opt = opt;
-	if (ch0) {
-		cs.ch = ch0, cs.old_only = 1;
+	pldat_t pl;
+	gzFile fp;
+	if ((fp = gzopen(fn, "r")) == 0) return 0;
+	pl.ks = kseq_init(fp);
+	pl.opt = opt;
+	if (h0) {
+		pl.h = h0, pl.create_new = 0;
+		assert(h0->k == opt->k && h0->pre == opt->pre);
 	} else {
-		cs.bf = opt->bf_shift <= 0? 0 : bfc_bf_init(opt->bf_shift, opt->bf_n_hashes);
-		cs.ch = bfc_ch_init(opt->k, opt->b_pre);
+		pl.create_new = 1;
+		pl.h = yak_ch_init(opt->k, opt->pre, opt->bf_n_hash, opt->bf_shift);
 	}
-	cs.n_buf = calloc(opt->n_threads, sizeof(int));
-	cs.buf = calloc(opt->n_threads, sizeof(void*));
-	for (i = 0; i < opt->n_threads; ++i)
-		cs.buf[i] = malloc(CNT_BUF_SIZE * sizeof(insbuf_t));
-	cs.ks = bseq_open(fn);
-	kt_pipeline(2, bfc_count_cb, &cs, 2);
-	bseq_close(cs.ks);
-	for (i = 0; i < opt->n_threads; ++i) free(cs.buf[i]);
-	free(cs.buf); free(cs.n_buf);
-	if (ch0) bfc_ch_del2(cs.ch);
-	ret = cs.ch;
-	bfc_bf_destroy(cs.bf);
-	return ret;
-}
-
-void yak_copt_init(yak_copt_t *opt)
-{
-	memset(opt, 0, sizeof(yak_copt_t));
-	opt->chunk_size = 100000000;
-	opt->k = 31;
-	opt->b_pre = 20;
-	opt->bf_shift = 0;
-	opt->bf_n_hashes = 4;
-	opt->n_threads = 4;
+	kt_pipeline(3, worker_pipeline, &pl, 3);
+	kseq_destroy(pl.ks);
+	gzclose(fp);
+	return pl.h;
 }

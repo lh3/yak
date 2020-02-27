@@ -4,17 +4,15 @@
 #include <assert.h>
 #include <math.h>
 #include "kthread.h"
-#include "yak.h"
-#include "kmer.h"
+#include "yak-priv.h"
 #include "bseq.h"
-#include "sys.h"
 
 #ifndef kroundup32
 #define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
 #endif
 
 typedef struct {
-	int64_t c[1<<YAK_COUNTER_BITS];
+	int64_t c[YAK_N_COUNTS];
 	int32_t max;
 	uint64_t *s;
 } qv_cntbuf_t;
@@ -23,7 +21,7 @@ typedef struct {
 	int k;
 	const yak_qopt_t *opt;
 	bseq_file_t *ks;
-	const bfc_ch_t *ch;
+	const yak_ch_t *ch;
 	qv_cntbuf_t *buf;
 } qv_shared_t;
 
@@ -33,24 +31,14 @@ typedef struct {
 	qv_shared_t *qs;
 } qv_step_t;
 
-static int qv_count(qv_shared_t *qs, const bfc_kmer_t *x)
-{
-	int c;
-	uint64_t y[2];
-	bfc_kmer_hash(qs->k, x->x, y);
-	c = bfc_ch_get(qs->ch, y);
-	return c > 0? c : 0;
-}
-
 static void worker_qv(void *_data, long k, int tid)
 {
-	extern bfc_kmer_t bfc_kmer_null;
 	qv_step_t *data = (qv_step_t*)_data;
 	qv_shared_t *qs = data->qs;
 	bseq1_t *s = &data->seqs[k];
 	qv_cntbuf_t *b = &qs->buf[tid];
-	int i, l, tot, non0;
-	bfc_kmer_t x = bfc_kmer_null;
+	int i, l, tot, non0, shift = 2 * (qs->ch->k - 1);
+	uint64_t x[2], mask = (1ULL<<2*qs->ch->k) - 1;
 
 	if (s->l_seq < qs->opt->min_len) return;
 	if (b->max < s->l_seq) {
@@ -58,17 +46,21 @@ static void worker_qv(void *_data, long k, int tid)
 		kroundup32(b->max);
 		b->s = (uint64_t*)realloc(b->s, b->max * sizeof(uint64_t));
 	}
-	for (i = l = 0, tot = non0 = 0; i < s->l_seq; ++i) {
-		int c = seq_nt6_table[(uint8_t)s->seq[i]] - 1;
+	for (i = l = 0, tot = non0 = 0, x[0] = x[1] = 0; i < s->l_seq; ++i) {
+		int c = seq_nt4_table[(uint8_t)s->seq[i]];
 		if (c < 4) {
-			bfc_kmer_append(qs->k, x.x, c);
+			x[0] = (x[0] << 2 | c) & mask;
+			x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;
 			if (++l >= qs->k) {
 				int t;
-				t = qv_count(qs, &x);
+				uint64_t y = x[0] < x[1]? x[0] : x[1];
+				y = yak_hash64(y, mask);
+				t = yak_ch_get(qs->ch, y);
+				if (t < 0) t = 0;
 				if (t > 0) ++non0;
 				b->s[tot++] = (uint64_t)i<<32 | t;
 			}
-		} else l = 0, x = bfc_kmer_null;
+		} else l = 0, x[0] = x[1] = 0;
 	}
 
 	if (qs->opt->print_each) {
@@ -117,12 +109,12 @@ static void *yak_qv_cb(void *shared, int step, void *_data)
 	return 0;
 }
 
-void yak_qv(const yak_qopt_t *opt, const char *fn, const bfc_ch_t *ch, int64_t *cnt)
+void yak_qv(const yak_qopt_t *opt, const char *fn, const yak_ch_t *ch, int64_t *cnt)
 {
 	qv_shared_t qs;
 	int i, j, n_cnt = 1<<YAK_COUNTER_BITS;
 	memset(&qs, 0, sizeof(qv_shared_t));
-	qs.k = bfc_ch_get_k(ch);
+	qs.k = ch->k;
 	qs.opt = opt;
 	qs.ch = ch;
 	qs.buf = calloc(opt->n_threads, sizeof(qv_cntbuf_t));

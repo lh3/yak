@@ -8,8 +8,7 @@
 #include <math.h>
 #include <sys/stat.h>
 #include "ketopt.h"
-#include "yak.h"
-#include "sys.h"
+#include "yak-priv.h"
 
 static inline int64_t mm_parse_num(const char *str)
 {
@@ -22,85 +21,59 @@ static inline int64_t mm_parse_num(const char *str)
 	return (int64_t)(x + .499);
 }
 
-static void usage_count(FILE *fp, yak_copt_t *o)
-{
-	fprintf(fp, "Usage: yak count [options] <in.fq> [in.fq]\n");
-	fprintf(fp, "Options:\n");
-	fprintf(fp, "  -p INT       prefix length [%d]\n", o->b_pre);
-	fprintf(fp, "  -k INT       k-mer length [%d]\n", o->k);
-	fprintf(fp, "  -b INT       set Bloom filter size to 2**INT bits; 0 to disable [%d]\n", o->bf_shift);
-	fprintf(fp, "  -H INT       use INT hash functions for Bloom filter [%d]\n", o->bf_n_hashes);
-	fprintf(fp, "  -t INT       number of threads [%d]\n", o->n_threads);
-	fprintf(fp, "  -o FILE      write counts to FILE []\n");
-	fprintf(fp, "  -K NUM       batch size [%ld]\n", (long)o->chunk_size);
-	fprintf(fp, "Note: -b37 is recommended for human reads\n");
-}
-
 int main_count(int argc, char *argv[])
 {
+	yak_ch_t *h;
+	int c;
+	char *fn_out = 0;
 	yak_copt_t opt;
-	bfc_ch_t *ch = 0;
 	ketopt_t o = KETOPT_INIT;
-	char *out_fn = 0;
-	int c, is_pipe = 0;
-
 	yak_copt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "k:b:t:H:K:v:o:p:", 0)) >= 0) {
-		if (c == 'p') opt.b_pre = atoi(o.arg);
-		else if (c == 'k') opt.k = atoi(o.arg);
+	while ((c = ketopt(&o, argc, argv, 1, "k:p:K:t:b:H:o:", 0)) >= 0) {
+		if (c == 'k') opt.k = atoi(o.arg);
+		else if (c == 'p') opt.pre = atoi(o.arg);
+		else if (c == 'K') opt.chunk_size = atoi(o.arg);
+		else if (c == 't') opt.n_thread = atoi(o.arg);
 		else if (c == 'b') opt.bf_shift = atoi(o.arg);
-		else if (c == 'H') opt.bf_n_hashes = atoi(o.arg);
-		else if (c == 't') opt.n_threads = atoi(o.arg);
-		else if (c == 'v') yak_verbose = atoi(o.arg);
-		else if (c == 'K') opt.chunk_size = mm_parse_num(o.arg);
-		else if (c == 'o') out_fn = o.arg;
+		else if (c == 'H') opt.bf_n_hash = mm_parse_num(o.arg);
+		else if (c == 'o') fn_out = o.arg;
 	}
-
-	if (o.ind == argc) {
-		usage_count(stderr, &opt);
+	if (argc - o.ind < 1) {
+		fprintf(stderr, "Usage: yaks count [options] <in.fa> [in.fa]\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -k INT     k-mer size [%d]\n", opt.k);
+		fprintf(stderr, "  -p INT     prefix length [%d]\n", opt.pre);
+		fprintf(stderr, "  -b INT     set Bloom filter size to 2**INT bits; 0 to disable [%d]\n", opt.bf_shift);
+		fprintf(stderr, "  -H INT     use INT hash functions for Bloom filter [%d]\n", opt.bf_n_hash);
+		fprintf(stderr, "  -t INT     number of worker threads [%d]\n", opt.n_thread);
+		fprintf(stderr, "  -o FILE    dump the count hash table to FILE []\n");
+		fprintf(stderr, "  -K INT     chunk size [100m]\n");
+		fprintf(stderr, "Note: -b37 is recommended for human reads\n");
 		return 1;
 	}
-	if (out_fn == 0) {
-		if (isatty(1))
-			fprintf(stderr, "Warning: please use option -o to specify the output file\n");
-		else out_fn = "-";
-	}
-	if (opt.b_pre + 64 < 2 * opt.k + YAK_COUNTER_BITS)
-		fprintf(stderr, "Warning: counting hashes instead. Please increase -p or reduce -k to count k-mers.\n");
-
-	if (strcmp(argv[o.ind], "-") == 0 && !isatty(0)) is_pipe = 1;
-	else {
-		struct stat st;
-		if (stat(argv[o.ind], &st) < 0) {
-			fprintf(stderr, "ERROR: fail to open file '%s'\n", argv[o.ind]);
-			return 1;
-		}
-		if (st.st_mode & S_IFIFO) is_pipe = 1;
-	}
-	if (is_pipe && opt.bf_shift && argc - o.ind == 1) {
-		fprintf(stderr, "ERROR: when bloom filter is in use, please provide a normal file or two streams.\n");
+	if (opt.pre < YAK_COUNTER_BITS) {
+		fprintf(stderr, "ERROR: -p should be at least %d\n", YAK_COUNTER_BITS);
 		return 1;
 	}
-	if (!is_pipe && o.ind + 1 < argc)
-		fprintf(stderr, "Warning: the 2nd input file '%s' is ignored\n", argv[o.ind + 1]);
-
-	ch = bfc_count(argv[o.ind], &opt, 0);
+	h = yak_count(argv[o.ind], &opt, 0);
 	if (opt.bf_shift > 0) {
-		char *next_fn = is_pipe? argv[o.ind + 1] : argv[o.ind];
-		bfc_ch_reset(ch);
-		ch = bfc_count(next_fn, &opt, ch);
+		yak_ch_destroy_bf(h);
+		yak_ch_clear(h, opt.n_thread);
+		h = yak_count(argc - o.ind >= 2? argv[o.ind+1] : argv[o.ind], &opt, h);
+		yak_ch_shrink(h, 2, YAK_MAX_COUNT, opt.n_thread);
+		fprintf(stderr, "[M::%s] %ld distinct k-mers after shrinking\n", __func__, (long)h->tot);
 	}
-	if (out_fn) bfc_ch_dump(ch, out_fn);
-	bfc_ch_destroy(ch);
+	if (fn_out) yak_ch_dump(h, fn_out);
+	yak_ch_destroy(h);
 	return 0;
 }
 
 int main_qv(int argc, char *argv[])
 {
 	yak_qopt_t opt;
-	bfc_ch_t *ch = 0;
+	yak_ch_t *ch = 0;
 	ketopt_t o = KETOPT_INIT;
-	int64_t cnt[1<<YAK_COUNTER_BITS], hist[1<<YAK_COUNTER_BITS];
+	int64_t cnt[YAK_N_COUNTS], hist[YAK_N_COUNTS];
 	int c, i, kmer;
 	yak_qstat_t qs;
 
@@ -125,10 +98,10 @@ int main_qv(int argc, char *argv[])
 		return 1;
 	}
 
-	ch = bfc_ch_restore(argv[o.ind]);
+	ch = yak_ch_restore(argv[o.ind]);
 	assert(ch);
-	kmer = bfc_ch_get_k(ch);
-	bfc_ch_hist(ch, hist);
+	kmer = ch->k;
+	yak_ch_hist(ch, hist, opt.n_threads);
 	printf("CC\tCT  kmer_occurrence    short_read_kmer_count  raw_input_kmer_count  adjusted_input_kmer_count\n");
 	printf("CC\tFR  fpr_lower_bound    fpr_upper_bound\n");
 	printf("CC\tER  total_input_kmers  adjusted_error_kmers\n");
@@ -143,23 +116,39 @@ int main_qv(int argc, char *argv[])
 	printf("ER\t%ld\t%.3f\n", (long)qs.tot, qs.err);
 	printf("CV\t%.3f\n", qs.cov);
 	printf("QV\t%.3f\t%.3f\n", qs.qv_raw, qs.qv);
-	bfc_ch_destroy(ch);
+	yak_ch_destroy(ch);
+	return 0;
+}
+
+int main_test(int argc, char *argv[])
+{
+	yak_ch_t *h;
+	int64_t cnt[YAK_N_COUNTS];
+	int i;
+	if (argc == 1) {
+		fprintf(stderr, "Usage: yaks test <in.yak>\n");
+		return 1;
+	}
+	h = yak_ch_restore(argv[1]);
+	yak_ch_hist(h, cnt, 4);
+	for (i = 1; i < YAK_N_COUNTS; ++i)
+		printf("%d\t%ld\n", i, (long)cnt[i]);
 	return 0;
 }
 
 int main(int argc, char *argv[])
 {
-	extern int main_inspect(int argc, char *argv[]);
 	extern int main_triobin(int argc, char *argv[]);
+	extern int main_inspect(int argc, char *argv[]);
 	int ret = 0, i;
 	yak_reset_realtime();
 	if (argc == 1) {
-		fprintf(stderr, "Usage: yak <command> <argument>\n");
+		fprintf(stderr, "Usage: yaks <command> <argument>\n");
 		fprintf(stderr, "Command:\n");
 		fprintf(stderr, "  count     count k-mers\n");
-		fprintf(stderr, "  inspect   inspect k-mer hash tables\n");
-		fprintf(stderr, "  triobin   trio binning\n");
 		fprintf(stderr, "  qv        evaluate quality values\n");
+		fprintf(stderr, "  triobin   trio binning\n");
+		fprintf(stderr, "  inspect k-mer hash tables\n");
 		fprintf(stderr, "  version   print version number\n");
 		return 1;
 	}
@@ -167,15 +156,16 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "qv") == 0) ret = main_qv(argc-1, argv+1);
 	else if (strcmp(argv[1], "triobin") == 0) ret = main_triobin(argc-1, argv+1);
 	else if (strcmp(argv[1], "inspect") == 0) ret = main_inspect(argc-1, argv+1);
+	else if (strcmp(argv[1], "test") == 0) ret = main_test(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
-		puts(YAK_VERSION);
+		puts(YAKS_VERSION);
 		return 0;
 	} else {
 		fprintf(stderr, "[E::%s] unknown command\n", __func__);
 		return 1;
 	}
 	if (ret == 0) {
-		fprintf(stderr, "[M::%s] Version: %s\n", __func__, YAK_VERSION);
+		fprintf(stderr, "[M::%s] Version: %s\n", __func__, YAKS_VERSION);
 		fprintf(stderr, "[M::%s] CMD:", __func__);
 		for (i = 0; i < argc; ++i)
 			fprintf(stderr, " %s", argv[i]);
