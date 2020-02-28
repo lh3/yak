@@ -39,7 +39,7 @@ int main_count(int argc, char *argv[])
 		else if (c == 'o') fn_out = o.arg;
 	}
 	if (argc - o.ind < 1) {
-		fprintf(stderr, "Usage: yaks count [options] <in.fa> [in.fa]\n");
+		fprintf(stderr, "Usage: yak count [options] <in.fa> [in.fa]\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -k INT     k-mer size [%d]\n", opt.k);
 		fprintf(stderr, "  -p INT     prefix length [%d]\n", opt.pre);
@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
 	int ret = 0, i;
 	yak_reset_realtime();
 	if (argc == 1) {
-		fprintf(stderr, "Usage: yaks <command> <argument>\n");
+		fprintf(stderr, "Usage: yak <command> <argument>\n");
 		fprintf(stderr, "Command:\n");
 		fprintf(stderr, "  count     count k-mers\n");
 		fprintf(stderr, "  qv        evaluate quality values\n");

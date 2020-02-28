@@ -15,6 +15,7 @@
 typedef struct {
 	int c[16];
 	int sc[2];
+	int nk;
 } tb_cnt_t;
 
 typedef struct {
@@ -59,6 +60,7 @@ static void tb_worker(void *_data, long k, int tid)
 			if (++l >= aux->k) {
 				int type = 0, c1, c2;
 				uint64_t y = x[0] < x[1]? x[0] : x[1];
+				++t->cnt[k].nk;
 				y = yak_hash64(y, mask);
 				flag = yak_ch_get(aux->ch, y);
 				if (flag < 0) flag = 0;
@@ -85,14 +87,15 @@ static char tb_classify(const int sc[2], const int *c, int k, double ratio_thres
 {
 	char type;
 	if (sc[0] == 0 && sc[1] == 0) {
-		type = '0';
+		if (c[0<<2|2] == c[2<<2|0]) type = '0';
+		else if (c[0<<2|2] >= k - 2 + c[2<<2|0] && c[0<<2|2] * 0.05 > c[2<<2|0]) type = 'p';
+		else if (c[2<<2|0] >= k - 2 + c[0<<2|2] && c[2<<2|0] * 0.05 > c[0<<2|2]) type = 'm';
+		else type = '0';
 	} else if (sc[0] > k && sc[1] > k) {
 		type = 'a';
-	} else if (sc[0] == sc[1]) {
-		type = 'a';
-	} else if (sc[0] > sc[1] && sc[0] * ratio_thres > c[2<<2|0] + c[1<<2|0] && sc[0] >= k - 2 + c[2<<2|0]) {
+	} else if (sc[0] >= k - 2 + sc[1] && sc[0] * 0.05 >= sc[1] && c[0<<2|2] * ratio_thres > c[2<<2|0]) {
 		type = 'p';
-	} else if (sc[1] > sc[0] && sc[1] * ratio_thres > c[0<<2|2] + c[0<<2|1] && sc[1] >= k - 2 + c[0<<2|2]) {
+	} else if (sc[1] >= k - 2 + sc[0] && sc[1] * 0.05 >= sc[0] && c[2<<2|0] * ratio_thres > c[0<<2|2]) {
 		type = 'm';
 	} else {
 		type = 'a';
@@ -121,8 +124,8 @@ static void *tb_pipeline(void *shared, int step, void *_data)
 			int *c = s->cnt[i].c;
 			char type;
 			type = tb_classify(s->cnt[i].sc, c, aux->k, aux->ratio_thres);
-			printf("%s\t%c\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", s->seq[i].name, type, s->cnt[i].sc[0], s->cnt[i].sc[1],
-				   c[0<<2|2], c[2<<2|0], c[0<<2|1], c[1<<2|0], c[2<<2|2], c[1<<2|1], c[0], c[1<<2|2], c[2<<2|1]);
+			printf("%s\t%c\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", s->seq[i].name, type, s->cnt[i].sc[0], s->cnt[i].sc[1],
+				   c[0<<2|2], c[2<<2|0], c[0<<2|1], c[1<<2|0], s->cnt[i].nk, c[0]);
 			free(s->seq[i].name); free(s->seq[i].seq); free(s->seq[i].qual); free(s->seq[i].comment);
 		}
 		free(s->seq); free(s->cnt); free(s);
@@ -133,13 +136,13 @@ static void *tb_pipeline(void *shared, int step, void *_data)
 int main_triobin(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int i, c, min_cnt = 5, mid_cnt = 15;
+	int i, c, min_cnt = 5, mid_cnt = 10;
 	yak_ch_t *ch;
 	tb_shared_t aux;
 
 	memset(&aux, 0, sizeof(tb_shared_t));
 	aux.n_threads = 8, aux.print_diff = 0;
-	aux.ratio_thres = 0.2;
+	aux.ratio_thres = 0.33;
 	while ((c = ketopt(&o, argc, argv, 1, "c:d:t:pr:", 0)) >= 0) {
 		if (c == 'c') min_cnt = atoi(o.arg);
 		else if (c == 'd') mid_cnt = atoi(o.arg);
