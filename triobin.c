@@ -76,7 +76,7 @@ static void tb_worker(void *_data, long k, int tid)
 	}
 	for (l = 0, i = 1; i <= s->l_seq; ++i) {
 		if (i == s->l_seq || b->s[i] != b->s[l]) {
-			if (b->s[l] > 0 && i - l >= aux->k - 2)
+			if (b->s[l] > 0 && i - l >= aux->k - 4)
 				t->cnt[k].sc[b->s[l] - 1] += i - l;
 			l = i;
 		}
@@ -88,14 +88,14 @@ static char tb_classify(const int sc[2], const int *c, int k, double ratio_thres
 	char type;
 	if (sc[0] == 0 && sc[1] == 0) {
 		if (c[0<<2|2] == c[2<<2|0]) type = '0';
-		else if (c[0<<2|2] >= k - 2 + c[2<<2|0] && c[0<<2|2] * 0.05 > c[2<<2|0]) type = 'p';
-		else if (c[2<<2|0] >= k - 2 + c[0<<2|2] && c[2<<2|0] * 0.05 > c[0<<2|2]) type = 'm';
+		else if (c[0<<2|2] >= k - 4 + c[2<<2|0] && (c[2<<2|0] <= 1 || c[0<<2|2] * 0.05 > c[2<<2|0])) type = 'p';
+		else if (c[2<<2|0] >= k - 4 + c[0<<2|2] && (c[0<<2|2] <= 1 || c[2<<2|0] * 0.05 > c[0<<2|2])) type = 'm';
 		else type = '0';
 	} else if (sc[0] > k && sc[1] > k) {
 		type = 'a';
-	} else if (sc[0] >= k - 2 + sc[1] && sc[0] * 0.05 >= sc[1] && c[0<<2|2] * ratio_thres > c[2<<2|0]) {
+	} else if (sc[0] >= k - 4 + sc[1] && sc[0] * 0.05 >= sc[1] && c[0<<2|2] * ratio_thres > c[2<<2|0]) {
 		type = 'p';
-	} else if (sc[1] >= k - 2 + sc[0] && sc[1] * 0.05 >= sc[0] && c[2<<2|0] * ratio_thres > c[0<<2|2]) {
+	} else if (sc[1] >= k - 4 + sc[0] && sc[1] * 0.05 >= sc[0] && c[2<<2|0] * ratio_thres > c[0<<2|2]) {
 		type = 'm';
 	} else {
 		type = 'a';
