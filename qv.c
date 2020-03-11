@@ -40,6 +40,7 @@ static void worker_qv(void *_data, long k, int tid)
 	int i, l, tot, non0, shift = 2 * (qs->ch->k - 1);
 	uint64_t x[2], mask = (1ULL<<2*qs->ch->k) - 1;
 
+	assert(qs->ch->k < 32);
 	if (s->l_seq < qs->opt->min_len) return;
 	if (b->max < s->l_seq) {
 		b->max = s->l_seq;

@@ -42,6 +42,23 @@ static void count_seq_buf(ch_buf_t *buf, int k, int p, int len, const char *seq)
 	}
 }
 
+static void count_seq_buf_long(ch_buf_t *buf, int k, int p, int len, const char *seq) // insert k-mers in $seq to linear buffer $buf
+{
+	int i, l;
+	uint64_t x[4], mask = (1ULL<<k) - 1, shift = k - 1;
+	for (i = l = 0, x[0] = x[1] = x[2] = x[3] = 0; i < len; ++i) {
+		int c = seq_nt4_table[(uint8_t)seq[i]];
+		if (c < 4) { // not an "N" base
+			x[0] = (x[0] << 1 | (c&1))  & mask;
+			x[1] = (x[1] << 1 | (c>>1)) & mask;
+			x[2] = x[2] >> 1 | (uint64_t)(1 - (c&1))  << shift;
+			x[3] = x[3] >> 1 | (uint64_t)(1 - (c>>1)) << shift;
+			if (++l >= k)
+				ch_insert_buf(buf, p, yak_hash_long(x));
+		} else l = 0, x[0] = x[1] = x[2] = x[3] = 0; // if there is an "N", restart
+	}
+}
+
 typedef struct { // global data structure for kt_pipeline()
 	const yak_copt_t *opt;
 	int create_new;
@@ -101,7 +118,10 @@ static void *worker_pipeline(void *data, int step, void *in) // callback for kt_
 			MALLOC(s->buf[i].a, m);
 		}
 		for (i = 0; i < s->n; ++i) {
-			count_seq_buf(s->buf, p->opt->k, p->opt->pre, s->len[i], s->seq[i]);
+			if (p->opt->k < 32)
+				count_seq_buf(s->buf, p->opt->k, p->opt->pre, s->len[i], s->seq[i]);
+			else
+				count_seq_buf_long(s->buf, p->opt->k, p->opt->pre, s->len[i], s->seq[i]);
 			free(s->seq[i]);
 		}
 		free(s->seq); free(s->len);

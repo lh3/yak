@@ -44,24 +44,41 @@ static void tb_worker(void *_data, long k, int tid)
 	tb_shared_t *aux = t->aux;
 	bseq1_t *s = &t->seq[k];
 	tb_buf_t *b = &aux->buf[tid];
-	uint64_t x[2], mask = (1ULL<<2*aux->ch->k) - 1;
-	int i, l, shift = 2 * (aux->ch->k - 1);
+	uint64_t x[4], mask;
+	int i, l, shift;
+	if (aux->ch->k < 32) {
+		mask = (1ULL<<2*aux->ch->k) - 1;
+		shift = 2 * (aux->ch->k - 1);
+	} else {
+		mask = (1ULL<<aux->ch->k) - 1;
+		shift = aux->ch->k - 1;
+	}
 	if (s->l_seq > b->max) {
 		b->max = s->l_seq;
 		kroundup32(b->max);
 		b->s = (uint32_t*)realloc(b->s, b->max * sizeof(uint32_t));
 	}
 	memset(b->s, 0, s->l_seq * sizeof(uint32_t));
-	for (i = l = 0, x[0] = x[1] = 0; i < s->l_seq; ++i) {
+	for (i = l = 0, x[0] = x[1] = x[2] = x[3] = 0; i < s->l_seq; ++i) {
 		int flag, c = seq_nt4_table[(uint8_t)s->seq[i]];
 		if (c < 4) {
-			x[0] = (x[0] << 2 | c) & mask;
-			x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;
+			if (aux->ch->k < 32) {
+				x[0] = (x[0] << 2 | c) & mask;
+				x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;
+			} else {
+				x[0] = (x[0] << 1 | (c&1))  & mask;
+				x[1] = (x[1] << 1 | (c>>1)) & mask;
+				x[2] = x[2] >> 1 | (uint64_t)(1 - (c&1))  << shift;
+				x[3] = x[3] >> 1 | (uint64_t)(1 - (c>>1)) << shift;
+			}
 			if (++l >= aux->k) {
 				int type = 0, c1, c2;
-				uint64_t y = x[0] < x[1]? x[0] : x[1];
+				uint64_t y;
 				++t->cnt[k].nk;
-				y = yak_hash64(y, mask);
+				if (aux->ch->k < 32)
+					y = yak_hash64(x[0] < x[1]? x[0] : x[1], mask);
+				else
+					y = yak_hash_long(x);
 				flag = yak_ch_get(aux->ch, y);
 				if (flag < 0) flag = 0;
 				c1 = flag&3, c2 = flag>>2&3;
@@ -72,7 +89,7 @@ static void tb_worker(void *_data, long k, int tid)
 				if (aux->print_diff && (flag>>2&3) != (flag&3))
 					printf("D\t%s\t%d\t%d\t%d\n", s->name, i, flag&3, flag>>2&3);
 			}
-		} else l = 0, x[0] = x[1] = 0;
+		} else l = 0, x[0] = x[1] = x[2] = x[3] = 0;
 	}
 	for (l = 0, i = 1; i <= s->l_seq; ++i) {
 		if (i == s->l_seq || b->s[i] != b->s[l]) {
@@ -156,7 +173,7 @@ int main_triobin(int argc, char *argv[])
 		fprintf(stderr, "  -c INT     min occurrence [%d]\n", min_cnt);
 		fprintf(stderr, "  -d INT     mid occurrence [%d]\n", mid_cnt);
 		fprintf(stderr, "  -t INT     number of threads [%d]\n", aux.n_threads);
-		fprintf(stderr, "Output: ctg err strongMixed sPat sMat weakMixed wPat1 wMat1 wPat2 wMat2\n");
+//		fprintf(stderr, "Output: ctg err strongMixed sPat sMat weakMixed wPat1 wMat1 wPat2 wMat2\n");
 		return 1;
 	}
 
@@ -165,6 +182,10 @@ int main_triobin(int argc, char *argv[])
 
 	aux.k = ch->k;
 	aux.fp = bseq_open(argv[o.ind+2]);
+	if (aux.fp == 0) {
+		fprintf(stderr, "ERROR: fail to open file '%s'\n", argv[o.ind+2]);
+		exit(1);
+	}
 	aux.ch = ch;
 	aux.buf = (tb_buf_t*)calloc(aux.n_threads, sizeof(tb_buf_t));
 	kt_pipeline(2, tb_pipeline, &aux, 2);

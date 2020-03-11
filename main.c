@@ -55,6 +55,12 @@ int main_count(int argc, char *argv[])
 		fprintf(stderr, "ERROR: -p should be at least %d\n", YAK_COUNTER_BITS);
 		return 1;
 	}
+	if (opt.k >= 64) {
+		fprintf(stderr, "ERROR: -k must be smaller than 64\n");
+		return 1;
+	} else if (opt.k >= 32) {
+		fprintf(stderr, "WARNING: counts are inexact if -k is greater than 31\n");
+	}
 	h = yak_count(argv[o.ind], &opt, 0);
 	if (opt.bf_shift > 0) {
 		yak_ch_destroy_bf(h);
@@ -120,22 +126,6 @@ int main_qv(int argc, char *argv[])
 	return 0;
 }
 
-int main_test(int argc, char *argv[])
-{
-	yak_ch_t *h;
-	int64_t cnt[YAK_N_COUNTS];
-	int i;
-	if (argc == 1) {
-		fprintf(stderr, "Usage: yaks test <in.yak>\n");
-		return 1;
-	}
-	h = yak_ch_restore(argv[1]);
-	yak_ch_hist(h, cnt, 4);
-	for (i = 1; i < YAK_N_COUNTS; ++i)
-		printf("%d\t%ld\n", i, (long)cnt[i]);
-	return 0;
-}
-
 int main(int argc, char *argv[])
 {
 	extern int main_triobin(int argc, char *argv[]);
@@ -156,7 +146,6 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "qv") == 0) ret = main_qv(argc-1, argv+1);
 	else if (strcmp(argv[1], "triobin") == 0) ret = main_triobin(argc-1, argv+1);
 	else if (strcmp(argv[1], "inspect") == 0) ret = main_inspect(argc-1, argv+1);
-	else if (strcmp(argv[1], "test") == 0) ret = main_test(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		puts(YAKS_VERSION);
 		return 0;
