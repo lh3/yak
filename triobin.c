@@ -153,7 +153,7 @@ static void *tb_pipeline(void *shared, int step, void *_data)
 int main_triobin(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int i, c, min_cnt = 5, mid_cnt = 10;
+	int i, c, min_cnt = 2, mid_cnt = 5;
 	yak_ch_t *ch;
 	tb_shared_t aux;
 
