@@ -129,6 +129,7 @@ int main_qv(int argc, char *argv[])
 int main(int argc, char *argv[])
 {
 	extern int main_triobin(int argc, char *argv[]);
+	extern int main_trioeval(int argc, char *argv[]);
 	extern int main_inspect(int argc, char *argv[]);
 	int ret = 0, i;
 	yak_reset_realtime();
@@ -138,6 +139,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  count     count k-mers\n");
 		fprintf(stderr, "  qv        evaluate quality values\n");
 		fprintf(stderr, "  triobin   trio binning\n");
+		fprintf(stderr, "  trioeval  evaluate phasing accuracy with trio\n");
 		fprintf(stderr, "  inspect   k-mer hash tables\n");
 		fprintf(stderr, "  version   print version number\n");
 		return 1;
@@ -145,6 +147,7 @@ int main(int argc, char *argv[])
 	if (strcmp(argv[1], "count") == 0) ret = main_count(argc-1, argv+1);
 	else if (strcmp(argv[1], "qv") == 0) ret = main_qv(argc-1, argv+1);
 	else if (strcmp(argv[1], "triobin") == 0) ret = main_triobin(argc-1, argv+1);
+	else if (strcmp(argv[1], "trioeval") == 0) ret = main_trioeval(argc-1, argv+1);
 	else if (strcmp(argv[1], "inspect") == 0) ret = main_inspect(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		puts(YAKS_VERSION);
