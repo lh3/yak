@@ -139,6 +139,7 @@ int main_trioeval(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
 	int i, c, min_cnt = 2, mid_cnt = 5;
+	int64_t cnt[YAK_N_COUNTS];
 	yak_ch_t *ch;
 	te_shared_t aux;
 
@@ -162,6 +163,9 @@ int main_trioeval(int argc, char *argv[])
 
 	ch = yak_ch_restore_core(0,  argv[o.ind],     YAK_LOAD_TRIOBIN1, min_cnt, mid_cnt);
 	ch = yak_ch_restore_core(ch, argv[o.ind + 1], YAK_LOAD_TRIOBIN2, min_cnt, mid_cnt);
+	yak_ch_hist(ch, cnt, aux.n_threads);
+	fprintf(stderr, "[M::%s] %ld file1-specific k-mers and %ld file2-specific k-mers\n", __func__,
+			(long)cnt[0<<2|2], (long)cnt[2<<2|0]);
 
 	aux.k = ch->k;
 	aux.fp = bseq_open(argv[o.ind+2]);
