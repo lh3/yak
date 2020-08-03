@@ -22,7 +22,7 @@ typedef struct {
 } te_buf_t;
 
 typedef struct {
-	int k, n_threads, min_n;
+	int k, n_threads, min_n, print_err;
 	bseq_file_t *fp;
 	const yak_ch_t *ch;
 	te_buf_t *buf;
@@ -93,8 +93,11 @@ static void te_worker(void *_data, long k, int tid)
 				int c = b->s[l] - 1;
 				t->cnt[k].c[c << 1 | c] += n - 1;
 				t->cnt[k].d[c] += n;
-				if (last > 0)
+				if (last > 0) {
 					++t->cnt[k].c[(last - 1) << 1 | c];
+					if (aux->print_err && last - 1 != c)
+						printf("E\t%s\t%d\t%d\t%d\n", s->name, i, last, c+1);
+				}
 				last = b->s[l];
 			}
 			l = i;
@@ -144,12 +147,13 @@ int main_trioeval(int argc, char *argv[])
 	te_shared_t aux;
 
 	memset(&aux, 0, sizeof(te_shared_t));
-	aux.n_threads = 8, aux.min_n = 2;
-	while ((c = ketopt(&o, argc, argv, 1, "c:d:t:n:", 0)) >= 0) {
+	aux.n_threads = 8, aux.min_n = 2, aux.print_err = 0;
+	while ((c = ketopt(&o, argc, argv, 1, "c:d:t:n:e", 0)) >= 0) {
 		if (c == 'c') min_cnt = atoi(o.arg);
 		else if (c == 'd') mid_cnt = atoi(o.arg);
 		else if (c == 't') aux.n_threads = atoi(o.arg);
 		else if (c == 'n') aux.min_n = atoi(o.arg);
+		else if (c == 'e') aux.print_err = 1;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: yak trioeval [options] <pat.yak> <mat.yak> <seq.fa>\n");
@@ -158,6 +162,7 @@ int main_trioeval(int argc, char *argv[])
 		fprintf(stderr, "  -d INT     mid occurrence [%d]\n", mid_cnt);
 		fprintf(stderr, "  -n INT     min streak [%d]\n", aux.min_n);
 		fprintf(stderr, "  -t INT     number of threads [%d]\n", aux.n_threads);
+		fprintf(stderr, "  -e         print error positions (out of order)\n");
 		return 1;
 	}
 
