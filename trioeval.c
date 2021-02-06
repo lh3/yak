@@ -10,7 +10,7 @@
 #define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
 #endif
 
-#define CHUNK_SIZE 200000000
+#define CHUNK_SIZE 1000000000
 
 typedef struct {
 	int nk, c[4], d[2];
