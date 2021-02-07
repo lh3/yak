@@ -22,7 +22,7 @@ typedef struct {
 } te_buf_t;
 
 typedef struct {
-	int k, n_threads, min_n, print_err;
+	int k, n_threads, min_n, print_err, print_frag;
 	bseq_file_t *fp;
 	const yak_ch_t *ch;
 	te_buf_t *buf;
@@ -45,6 +45,7 @@ static void te_worker(void *_data, long k, int tid)
 	te_buf_t *b = &aux->buf[tid];
 	uint64_t x[4], mask;
 	int i, l, shift, last;
+	int f_st, f_en, f_type, f_cnt;
 	if (aux->ch->k < 32) {
 		mask = (1ULL<<2*aux->ch->k) - 1;
 		shift = 2 * (aux->ch->k - 1);
@@ -58,6 +59,7 @@ static void te_worker(void *_data, long k, int tid)
 		b->s = (uint32_t*)realloc(b->s, b->max * sizeof(uint32_t));
 	}
 	memset(b->s, 0, s->l_seq * sizeof(uint32_t));
+	f_st = f_en = f_type = f_cnt = -1;
 	for (i = l = 0, x[0] = x[1] = x[2] = x[3] = 0; i < s->l_seq; ++i) {
 		int flag, c = seq_nt4_table[(uint8_t)s->seq[i]];
 		if (c < 4) {
@@ -84,9 +86,19 @@ static void te_worker(void *_data, long k, int tid)
 				if (c1 == 2 && c2 == 0) type = 1;
 				else if (c2 == 2 && c1 == 0) type = 2;
 				b->s[i] = type;
+				if (type > 0) {
+					if (f_type != type) {
+						if (f_type > 0 && aux->print_frag)
+							printf("F\t%s\t%d\t%d\t%d\t%d\n", s->name, f_type, f_st, f_en, f_cnt);
+						f_type = type, f_st = i + 1 - aux->ch->k, f_cnt = 0;
+					}
+					++f_cnt, f_en = i + 1;
+				}
 			}
 		} else l = 0, x[0] = x[1] = x[2] = x[3] = 0;
 	}
+	if (f_type > 0 && aux->print_frag)
+		printf("F\t%s\t%d\t%d\t%d\t%d\n", s->name, f_type, f_st, f_en, f_cnt);
 	for (l = 0, i = 1, last = 0; i <= s->l_seq; ++i) {
 		if (i == s->l_seq || b->s[i] != b->s[l]) {
 			if (b->s[l] > 0 && i - l >= aux->min_n) { // skip singletons
@@ -150,13 +162,14 @@ int main_trioeval(int argc, char *argv[])
 	te_shared_t aux;
 
 	memset(&aux, 0, sizeof(te_shared_t));
-	aux.n_threads = 8, aux.min_n = 2, aux.print_err = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "c:d:t:n:e", 0)) >= 0) {
+	aux.n_threads = 8, aux.min_n = 2, aux.print_frag = 1;
+	while ((c = ketopt(&o, argc, argv, 1, "c:d:t:n:eF", 0)) >= 0) {
 		if (c == 'c') min_cnt = atoi(o.arg);
 		else if (c == 'd') mid_cnt = atoi(o.arg);
 		else if (c == 't') aux.n_threads = atoi(o.arg);
 		else if (c == 'n') aux.min_n = atoi(o.arg);
 		else if (c == 'e') aux.print_err = 1;
+		else if (c == 'F') aux.print_frag = 0;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: yak trioeval [options] <pat.yak> <mat.yak> <seq.fa>\n");
@@ -182,9 +195,11 @@ int main_trioeval(int argc, char *argv[])
 		exit(1);
 	}
 	printf("C\tS  seqName     #patKmer  #patKmer  #pat-pat  #pat-mat  #mat-pat  #mat-mat  seqLen\n");
+	printf("C\tF  seqName     type      startPos  endPos    count\n");
 	printf("C\tW  #switchErr  denominator  switchErrRate\n");
 	printf("C\tH  #hammingErr denominator  hammingErrRate\n");
-	printf("C\tN  #totPatKmer #totMatKmer\n");
+	printf("C\tN  #totPatKmer #totMatKmer  errRate\n");
+	printf("C\n");
 	aux.ch = ch;
 	aux.buf = (te_buf_t*)calloc(aux.n_threads, sizeof(te_buf_t));
 	kt_pipeline(2, te_pipeline, &aux, 2);
@@ -193,7 +208,7 @@ int main_trioeval(int argc, char *argv[])
 	for (i = 0; i < aux.n_threads; ++i) free(aux.buf[i].s);
 	printf("W\t%ld\t%ld\t%.6f\n", (long)aux.n_switch, (long)aux.n_pair, (double)aux.n_switch/aux.n_pair);
 	printf("H\t%ld\t%ld\t%.6f\n", (long)aux.n_err, (long)aux.n_site, (double)aux.n_err/aux.n_site);
-	printf("N\t%ld\t%ld\n", (long)aux.n_par[0], (long)aux.n_par[1]);
+	printf("N\t%ld\t%ld\t%.6f\n", (long)aux.n_par[0], (long)aux.n_par[1], (double)(aux.n_par[0] < aux.n_par[1]? aux.n_par[0] : aux.n_par[1]) / (aux.n_par[0] + aux.n_par[1]));
 	free(aux.buf);
 	return 0;
 }
