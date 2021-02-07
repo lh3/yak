@@ -27,6 +27,7 @@ typedef struct {
 	const yak_ch_t *ch;
 	te_buf_t *buf;
 	int64_t n_pair, n_site, n_switch, n_err;
+	int64_t n_par[2];
 } te_shared_t;
 
 typedef struct {
@@ -124,13 +125,15 @@ static void *te_pipeline(void *shared, int step, void *_data)
 		kt_for(aux->n_threads, te_worker, s, s->n_seq);
 		for (i = 0; i < s->n_seq; ++i) {
 			int *c = s->cnt[i].c, *d = s->cnt[i].d;
+			aux->n_par[0] += d[0];
+			aux->n_par[1] += d[1];
 			if (d[0] + d[1] >= 2) {
 				aux->n_pair += c[0] + c[1] + c[2] + c[3];
 				aux->n_switch += c[1] + c[2];
 				aux->n_site += d[0] + d[1];
 				aux->n_err += d[0] < d[1]? d[0] : d[1];
 			}
-			printf("S\t%s\t%d\t%d\t%d\t%d\t%d\t%d\n", s->seq[i].name, d[0], d[1], c[0], c[1], c[2], c[3]);
+			printf("S\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", s->seq[i].name, d[0], d[1], c[0], c[1], c[2], c[3], s->seq[i].l_seq);
 			free(s->seq[i].name); free(s->seq[i].seq); free(s->seq[i].qual); free(s->seq[i].comment);
 		}
 		free(s->seq); free(s->cnt); free(s);
@@ -178,6 +181,10 @@ int main_trioeval(int argc, char *argv[])
 		fprintf(stderr, "ERROR: fail to open file '%s'\n", argv[o.ind+2]);
 		exit(1);
 	}
+	printf("C\tS  seqName     #patKmer  #patKmer  #pat-pat  #pat-mat  #mat-pat  #mat-mat  seqLen\n");
+	printf("C\tW  #switchErr  denominator  switchErrRate\n");
+	printf("C\tH  #hammingErr denominator  hammingErrRate\n");
+	printf("C\tN  #totPatKmer #totMatKmer\n");
 	aux.ch = ch;
 	aux.buf = (te_buf_t*)calloc(aux.n_threads, sizeof(te_buf_t));
 	kt_pipeline(2, te_pipeline, &aux, 2);
@@ -186,6 +193,7 @@ int main_trioeval(int argc, char *argv[])
 	for (i = 0; i < aux.n_threads; ++i) free(aux.buf[i].s);
 	printf("W\t%ld\t%ld\t%.6f\n", (long)aux.n_switch, (long)aux.n_pair, (double)aux.n_switch/aux.n_pair);
 	printf("H\t%ld\t%ld\t%.6f\n", (long)aux.n_err, (long)aux.n_site, (double)aux.n_err/aux.n_site);
+	printf("N\t%ld\t%ld\n", (long)aux.n_par[0], (long)aux.n_par[1]);
 	free(aux.buf);
 	return 0;
 }
