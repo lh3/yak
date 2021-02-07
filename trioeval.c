@@ -59,7 +59,6 @@ static void te_worker(void *_data, long k, int tid)
 		b->s = (uint32_t*)realloc(b->s, b->max * sizeof(uint32_t));
 	}
 	memset(b->s, 0, s->l_seq * sizeof(uint32_t));
-	f_st = f_en = f_type = f_cnt = -1;
 	for (i = l = 0, x[0] = x[1] = x[2] = x[3] = 0; i < s->l_seq; ++i) {
 		int flag, c = seq_nt4_table[(uint8_t)s->seq[i]];
 		if (c < 4) {
@@ -86,21 +85,12 @@ static void te_worker(void *_data, long k, int tid)
 				if (c1 == 2 && c2 == 0) type = 1;
 				else if (c2 == 2 && c1 == 0) type = 2;
 				b->s[i] = type;
-				if (type > 0) {
-					if (f_type != type) {
-						if (f_type > 0 && aux->print_frag)
-							printf("F\t%s\t%d\t%d\t%d\t%d\n", s->name, f_type, f_st, f_en, f_cnt);
-						f_type = type, f_st = i + 1 - aux->ch->k, f_cnt = 0;
-					}
-					++f_cnt, f_en = i + 1;
-				}
 			}
 		} else l = 0, x[0] = x[1] = x[2] = x[3] = 0;
 	}
-	if (f_type > 0 && aux->print_frag)
-		printf("F\t%s\t%d\t%d\t%d\t%d\n", s->name, f_type, f_st, f_en, f_cnt);
+	f_type = f_st = f_en = f_cnt = 0;
 	for (l = 0, i = 1, last = 0; i <= s->l_seq; ++i) {
-		if (i == s->l_seq || b->s[i] != b->s[l]) {
+		if (i == s->l_seq || b->s[i] != b->s[l]) { // found a streak
 			if (b->s[l] > 0 && i - l >= aux->min_n) { // skip singletons
 				int n = (i - l + aux->k - 1) / aux->k;
 				int c = b->s[l] - 1;
@@ -111,11 +101,19 @@ static void te_worker(void *_data, long k, int tid)
 					if (aux->print_err && last - 1 != c)
 						printf("E\t%s\t%d\t%d\t%d\n", s->name, i, last, c+1);
 				}
+				if (f_type != b->s[l]) {
+					if (f_type > 0 && aux->print_frag)
+						printf("F\t%s\t%d\t%d\t%d\t%d\n", s->name, f_type, f_st, f_en, f_cnt);
+					f_type = b->s[l], f_st = l + 1 - aux->ch->k, f_cnt = 0;
+				}
+				++f_cnt, f_en = i + 1;
 				last = b->s[l];
 			}
 			l = i;
 		}
 	}
+	if (f_type > 0 && aux->print_frag)
+		printf("F\t%s\t%d\t%d\t%d\t%d\n", s->name, f_type, f_st, f_en, f_cnt);
 }
 
 static void *te_pipeline(void *shared, int step, void *_data)
