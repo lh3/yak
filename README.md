@@ -26,8 +26,6 @@ cd yak && make
 
 # print k-mer histogram
 ./yak inspect sr.yak > sr.hist
-# print k-mers (warning: large output)
-./yak inspect -p sr.yak > sr.kmers
 ```
 
 ## Introduction
