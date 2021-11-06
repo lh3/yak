@@ -131,6 +131,7 @@ int main(int argc, char *argv[])
 	extern int main_triobin(int argc, char *argv[]);
 	extern int main_trioeval(int argc, char *argv[]);
 	extern int main_inspect(int argc, char *argv[]);
+	extern int main_chkerr(int argc, char *argv[]);
 	int ret = 0, i;
 	yak_reset_realtime();
 	if (argc == 1) {
@@ -141,6 +142,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  triobin   trio binning\n");
 		fprintf(stderr, "  trioeval  evaluate phasing accuracy with trio\n");
 		fprintf(stderr, "  inspect   k-mer hash tables\n");
+		fprintf(stderr, "  chkerr    check errors\n");
 		fprintf(stderr, "  version   print version number\n");
 		return 1;
 	}
@@ -149,6 +151,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "triobin") == 0) ret = main_triobin(argc-1, argv+1);
 	else if (strcmp(argv[1], "trioeval") == 0) ret = main_trioeval(argc-1, argv+1);
 	else if (strcmp(argv[1], "inspect") == 0) ret = main_inspect(argc-1, argv+1);
+	else if (strcmp(argv[1], "chkerr") == 0) ret = main_chkerr(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		puts(YAKS_VERSION);
 		return 0;
