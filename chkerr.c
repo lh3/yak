@@ -7,7 +7,7 @@
 #include "yak-priv.h"
 
 typedef struct {
-	int k, n_threads, min_cnt;
+	int k, n_threads, min_cnt, min_streak;
 	int64_t chunk_size;
 	bseq_file_t *fp;
 	const yak_ch_t *ch;
@@ -55,8 +55,8 @@ static void te_worker(void *_data, long k, int tid)
 				cnt = yak_ch_get(aux->ch, y);
 				if (cnt < aux->min_cnt) {
 					if (i != last + 1) {
-						if (streak > 0)
-							printf("%s\t%d\t%d\t%d\n", s->name, i + 1 - aux->k - streak, i, streak);
+						if (streak > aux->min_streak)
+							printf("%s\t%d\t%d\t%d\n", s->name, last + 1 - aux->k - (streak - 1), last + 1, streak);
 						streak = 1;
 					} else ++streak;
 					last = i;
@@ -64,6 +64,8 @@ static void te_worker(void *_data, long k, int tid)
 			}
 		} else l = 0, x[0] = x[1] = x[2] = x[3] = 0;
 	}
+	if (streak > aux->min_streak)
+		printf("%s\t%d\t%d\t%d\n", s->name, last + 1 - aux->k - (streak - 1), last + 1, streak);
 }
 
 static void *ce_pipeline(void *shared, int step, void *_data)
@@ -100,16 +102,18 @@ int main_chkerr(int argc, char *argv[])
 
 	memset(&aux, 0, sizeof(ce_shared_t));
 	aux.chunk_size = 1000000000;
-	aux.n_threads = 8, aux.min_cnt = 3;
-	while ((c = ketopt(&o, argc, argv, 1, "t:c:", 0)) >= 0) {
+	aux.n_threads = 8, aux.min_cnt = 3, aux.min_streak = 5;
+	while ((c = ketopt(&o, argc, argv, 1, "t:c:s:", 0)) >= 0) {
 		if (c == 't') aux.n_threads = atoi(o.arg);
 		else if (c == 'c') aux.min_cnt = atoi(o.arg);
+		else if (c == 's') aux.min_streak = atoi(o.arg);
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: yak chkerr [options] <count.yak> <seq.fa>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -t INT    number of threads [%d]\n", aux.n_threads);
 		fprintf(stderr, "  -c INT    min k-mer count [%d]\n", aux.min_cnt);
+		fprintf(stderr, "  -s INT    min k-mer streak [%d]\n", aux.min_streak);
 		return 1;
 	}
 
@@ -121,7 +125,6 @@ int main_chkerr(int argc, char *argv[])
 		fprintf(stderr, "ERROR: fail to open file '%s'\n", argv[o.ind+1]);
 		exit(1);
 	}
-	printf("C\n");
 	aux.ch = ch;
 	kt_pipeline(2, ce_pipeline, &aux, 2);
 	bseq_close(aux.fp);

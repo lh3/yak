@@ -32,7 +32,7 @@ int main_count(int argc, char *argv[])
 	while ((c = ketopt(&o, argc, argv, 1, "k:p:K:t:b:H:o:", 0)) >= 0) {
 		if (c == 'k') opt.k = atoi(o.arg);
 		else if (c == 'p') opt.pre = atoi(o.arg);
-		else if (c == 'K') opt.chunk_size = atoi(o.arg);
+		else if (c == 'K') opt.chunk_size = mm_parse_num(o.arg);
 		else if (c == 't') opt.n_thread = atoi(o.arg);
 		else if (c == 'b') opt.bf_shift = atoi(o.arg);
 		else if (c == 'H') opt.bf_n_hash = mm_parse_num(o.arg);
