@@ -62,6 +62,11 @@ int main_count(int argc, char *argv[])
 		fprintf(stderr, "WARNING: counts are inexact if -k is greater than 31\n");
 	}
 	h = yak_count(argv[o.ind], &opt, 0);
+	if(!h)
+	{
+		fprintf(stderr, "ERROR: file %s does not exist.\n", argv[o.ind]);
+		return 1;
+	}
 	if (opt.bf_shift > 0) {
 		yak_ch_destroy_bf(h);
 		yak_ch_clear(h, opt.n_thread);
