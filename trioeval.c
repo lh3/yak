@@ -192,7 +192,7 @@ int main_trioeval(int argc, char *argv[])
 		fprintf(stderr, "ERROR: fail to open file '%s'\n", argv[o.ind+2]);
 		exit(1);
 	}
-	printf("C\tS  seqName     #patKmer  #patKmer  #pat-pat  #pat-mat  #mat-pat  #mat-mat  seqLen\n");
+	printf("C\tS  seqName     #patKmer  #matKmer  #pat-pat  #pat-mat  #mat-pat  #mat-mat  seqLen\n");
 	printf("C\tF  seqName     type      startPos  endPos    count\n");
 	printf("C\tW  #switchErr  denominator  switchErrRate\n");
 	printf("C\tH  #hammingErr denominator  hammingErrRate\n");
