@@ -1,7 +1,7 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAKS_VERSION "0.1-r68-dirty"
+#define YAKS_VERSION "0.1-r69-dirty"
 
 #include <stdint.h>
 
@@ -18,6 +18,7 @@
 #define YAK_LOAD_TRIOBIN2  3
 #define YAK_LOAD_SEXCHR1   4
 #define YAK_LOAD_SEXCHR2   5
+#define YAK_LOAD_SEXCHR3   6
 
 #define YAK_MAGIC "YAK\2"
 

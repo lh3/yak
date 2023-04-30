@@ -228,9 +228,9 @@ yak_ch_t *yak_ch_restore_core(yak_ch_t *ch0, const char *fn, int mode, ...)
 		mid_cnt = va_arg(ap, int);
 		if (ch0 == 0 && mode == YAK_LOAD_TRIOBIN2)
 			mode_err = 1;
-	} else if (mode == YAK_LOAD_SEXCHR1 || mode == YAK_LOAD_SEXCHR2) {
-		assert(YAK_COUNTER_BITS >= 2);
-		if (ch0 == 0 && mode == YAK_LOAD_SEXCHR2)
+	} else if (mode == YAK_LOAD_SEXCHR1 || mode == YAK_LOAD_SEXCHR2 || mode == YAK_LOAD_SEXCHR3) {
+		assert(YAK_COUNTER_BITS >= 3);
+		if (ch0 == 0 && (mode == YAK_LOAD_SEXCHR2 || mode == YAK_LOAD_SEXCHR3))
 			mode_err = 1;
 	} else mode_err = 1;
 	va_end(ap);
@@ -276,8 +276,8 @@ yak_ch_t *yak_ch_restore_core(yak_ch_t *ch0, const char *fn, int mode, ...)
 					if (absent) ++n_new;
 					else kh_key(h, k) = kh_key(h, k) | x;
 				}
-			} else if (mode == YAK_LOAD_SEXCHR1 || mode == YAK_LOAD_SEXCHR2) {
-				int shift = mode == YAK_LOAD_SEXCHR1? 0 : 1, x = 1<<shift;
+			} else if (mode == YAK_LOAD_SEXCHR1 || mode == YAK_LOAD_SEXCHR2 || mode == YAK_LOAD_SEXCHR3) {
+				int shift = mode == YAK_LOAD_SEXCHR1? 0 : mode == YAK_LOAD_SEXCHR2? 1 : 2, x = 1<<shift;
 				khint_t k;
 				key = (key & ~mask) | x;
 				++n_ins;
