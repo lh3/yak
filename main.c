@@ -10,17 +10,6 @@
 #include "ketopt.h"
 #include "yak-priv.h"
 
-static inline int64_t mm_parse_num(const char *str)
-{
-	double x;
-	char *p;
-	x = strtod(str, &p);
-	if (*p == 'G' || *p == 'g') x *= 1e9;
-	else if (*p == 'M' || *p == 'm') x *= 1e6;
-	else if (*p == 'K' || *p == 'k') x *= 1e3;
-	return (int64_t)(x + .499);
-}
-
 int main_count(int argc, char *argv[])
 {
 	yak_ch_t *h;
@@ -132,6 +121,7 @@ int main(int argc, char *argv[])
 	extern int main_trioeval(int argc, char *argv[]);
 	extern int main_inspect(int argc, char *argv[]);
 	extern int main_chkerr(int argc, char *argv[]);
+	extern int main_sexchr(int argc, char *argv[]);
 	int ret = 0, i;
 	yak_reset_realtime();
 	if (argc == 1) {
@@ -143,6 +133,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  trioeval  evaluate phasing accuracy with trio\n");
 		fprintf(stderr, "  inspect   k-mer hash tables\n");
 		fprintf(stderr, "  chkerr    check errors\n");
+		fprintf(stderr, "  sexchr    count sex-chromosome-specific k-mers\n");
 		fprintf(stderr, "  version   print version number\n");
 		return 1;
 	}
@@ -152,6 +143,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "trioeval") == 0) ret = main_trioeval(argc-1, argv+1);
 	else if (strcmp(argv[1], "inspect") == 0) ret = main_inspect(argc-1, argv+1);
 	else if (strcmp(argv[1], "chkerr") == 0) ret = main_chkerr(argc-1, argv+1);
+	else if (strcmp(argv[1], "sexchr") == 0) ret = main_sexchr(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		puts(YAKS_VERSION);
 		return 0;

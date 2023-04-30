@@ -2,7 +2,7 @@ CFLAGS=		-g -Wall -O2
 CPPFLAGS=
 INCLUDES=	
 OBJS=		kthread.o bbf.o htab.o bseq.o misc.o sys.o 6gjdn.o \
-			count.o qv.o triobin.o trioeval.o inspect.o chkerr.o
+			count.o qv.o triobin.o trioeval.o inspect.o chkerr.o sexchr.o
 PROG=		yak
 LIBS=		-lm -lz -lpthread
 
@@ -40,6 +40,7 @@ kthread.o: kthread.h
 main.o: ketopt.h yak-priv.h yak.h
 misc.o: yak-priv.h yak.h
 qv.o: kthread.h yak-priv.h yak.h bseq.h
+sexchr.o: kthread.h ketopt.h bseq.h yak-priv.h yak.h
 sys.o: yak-priv.h yak.h
 triobin.o: kthread.h ketopt.h bseq.h yak-priv.h yak.h
 trioeval.o: kthread.h ketopt.h bseq.h yak-priv.h yak.h

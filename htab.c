@@ -228,6 +228,10 @@ yak_ch_t *yak_ch_restore_core(yak_ch_t *ch0, const char *fn, int mode, ...)
 		mid_cnt = va_arg(ap, int);
 		if (ch0 == 0 && mode == YAK_LOAD_TRIOBIN2)
 			mode_err = 1;
+	} else if (mode == YAK_LOAD_SEXCHR1 || mode == YAK_LOAD_SEXCHR2) {
+		assert(YAK_COUNTER_BITS >= 2);
+		if (ch0 == 0 && mode == YAK_LOAD_SEXCHR2)
+			mode_err = 1;
 	} else mode_err = 1;
 	va_end(ap);
 	if (mode_err) return 0;
@@ -251,7 +255,7 @@ yak_ch_t *yak_ch_restore_core(yak_ch_t *ch0, const char *fn, int mode, ...)
 	for (i = 0; i < 1<<ch->pre; ++i) {
 		yak_ht_t *h = ch->h[i].h;
 		fread(t, 4, 2, fp);
-		if (ch0 == 0) yak_ht_resize(h, t[0]);
+		yak_ht_resize(h, t[0]);
 		for (j = 0; j < t[1]; ++j) {
 			uint64_t key;
 			fread(&key, 8, 1, fp);
@@ -272,6 +276,14 @@ yak_ch_t *yak_ch_restore_core(yak_ch_t *ch0, const char *fn, int mode, ...)
 					if (absent) ++n_new;
 					else kh_key(h, k) = kh_key(h, k) | x;
 				}
+			} else if (mode == YAK_LOAD_SEXCHR1 || mode == YAK_LOAD_SEXCHR2) {
+				int shift = mode == YAK_LOAD_SEXCHR1? 0 : 1, x = 1<<shift;
+				khint_t k;
+				key = (key & ~mask) | x;
+				++n_ins;
+				k = yak_ht_put(h, key, &absent);
+				if (absent) ++n_new;
+				else kh_key(h, k) = kh_key(h, k) | x;
 			}
 		}
 	}

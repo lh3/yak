@@ -1,6 +1,7 @@
 #ifndef YAK_PRIV_H
 #define YAK_PRIV_H
 
+#include <stdlib.h>
 #include "yak.h"
 
 #define CALLOC(ptr, len) ((ptr) = (__typeof__(ptr))calloc((len), sizeof(*(ptr))))
@@ -41,5 +42,16 @@ double yak_cputime(void);
 void yak_reset_realtime(void);
 double yak_realtime(void);
 long yak_peakrss(void);
+
+static inline int64_t mm_parse_num(const char *str)
+{
+	double x;
+	char *p;
+	x = strtod(str, &p);
+	if (*p == 'G' || *p == 'g') x *= 1e9;
+	else if (*p == 'M' || *p == 'm') x *= 1e6;
+	else if (*p == 'K' || *p == 'k') x *= 1e3;
+	return (int64_t)(x + .499);
+}
 
 #endif
