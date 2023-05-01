@@ -26,6 +26,12 @@ cd yak && make
 
 # print k-mer histogram
 ./yak inspect sr.yak > sr.hist
+
+# partition chrX/Y in human de novo assembly
+wget -O- 'https://zenodo.org/record/7882299/files/human-chrXY-yak.tar?download=1' | tar tf -
+./yak sexchr -K2g -t16 chrY-no-par.yak chrX-no-par.yak par.yak hap1.fa hap2.fa > cnt.txt
+./groupxy.pl cnt.txt|awk '$4==1'|cut -f2|seqtk subseq -l80 <(cat hap1.fa hap2.fa) - > new-hap1.fa
+./groupxy.pl cnt.txt|awk '$4==2'|cut -f2|seqtk subseq -l80 <(cat hap1.fa hap2.fa) - > new-hap2.fa
 ```
 
 ## Introduction
