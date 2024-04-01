@@ -31,7 +31,7 @@ typedef struct {
 } yak_copt_t;
 
 typedef struct {
-	int32_t print_each;
+	int32_t print_each, print_err_kmer;
 	int32_t min_len;
 	int32_t n_threads;
 	double min_frac;

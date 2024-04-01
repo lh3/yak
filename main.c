@@ -73,12 +73,13 @@ int main_qv(int argc, char *argv[])
 	yak_qstat_t qs;
 
 	yak_qopt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "K:t:l:f:pe:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "K:t:l:f:pe:E", 0)) >= 0) {
 		if (c == 'K') opt.chunk_size = mm_parse_num(o.arg);
 		else if (c == 'l') opt.min_len = mm_parse_num(o.arg);
 		else if (c == 'f') opt.min_frac = atof(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
 		else if (c == 'p') opt.print_each = 1;
+		else if (c == 'E') opt.print_err_kmer = 1;
 		else if (c == 'e') opt.fpr = atof(o.arg);
 	}
 	if (argc - o.ind < 2) {
@@ -88,6 +89,7 @@ int main_qv(int argc, char *argv[])
 		fprintf(stderr, "  -f FLOAT    min k-mer fraction [%g]\n", opt.min_frac);
 		fprintf(stderr, "  -e FLOAT    false positive rate [%g]\n", opt.fpr);
 		fprintf(stderr, "  -p          print QV for each sequence\n");
+		fprintf(stderr, "  -E          print the positions of wrong k-mers\n");
 		fprintf(stderr, "  -t INT      number of threads [%d]\n", opt.n_threads);
 		fprintf(stderr, "  -K NUM      batch size [1g]\n");
 		return 1;

@@ -59,6 +59,9 @@ static void worker_qv(void *_data, long k, int tid)
 				t = yak_ch_get(qs->ch, y);
 				if (t < 0) t = 0;
 				if (t > 0) ++non0;
+				else if (qs->opt->print_err_kmer) {
+					printf("EK\t%s\t%d\n", s->name, i + 1 - qs->k);
+				}
 				b->s[tot++] = (uint64_t)i<<32 | t;
 			}
 		} else l = 0, x[0] = x[1] = 0;
