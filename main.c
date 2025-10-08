@@ -180,7 +180,6 @@ int main_print(int argc, char *argv[])
 	char buf[65];
 	yak_ch_t *h = 0;
 	int c, i;
-	uint64_t id = 0;
 	ketopt_t o = KETOPT_INIT;
 	while ((c = ketopt(&o, argc, argv, 1, "", 0)) >= 0) {
 	}
@@ -199,8 +198,6 @@ int main_print(int argc, char *argv[])
 			for (k = 0; k < h->k; ++k)
 				buf[h->k - k - 1] = "ACGT"[a[j]>>k*2 & 0x3];
 			buf[h->k] = 0;
-			++id;
-			printf(">%ld\n", (long)id);
 			puts(buf);
 		}
 	}

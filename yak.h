@@ -1,7 +1,7 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAKS_VERSION "0.1-r75-dirty"
+#define YAKS_VERSION "0.1-r76-dirty"
 
 #include <stdint.h>
 
