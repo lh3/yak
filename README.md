@@ -1,7 +1,3 @@
-**IMPORTANT: Since 3ace4ff, the format of binary k-mer dump is incompatible
-with the previous versions. You have to rerun `yak count` to generate k-mer
-dump in the new format.**
-
 ## Getting Started
 
 ```sh
