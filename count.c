@@ -148,7 +148,8 @@ yak_ch_t *yak_count(const char *fn, const yak_copt_t *opt, yak_ch_t *h0)
 {
 	pldat_t pl;
 	gzFile fp;
-	if ((fp = gzopen(fn, "r")) == 0) return 0;
+	fp = fn == 0 || strcmp(fn, "-") == 0? gzdopen(0, "r") : gzopen(fn, "r");
+	if (fp == 0) return 0;
 	pl.ks = kseq_init(fp);
 	pl.opt = opt;
 	if (h0) {

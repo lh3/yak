@@ -63,6 +63,61 @@ int main_count(int argc, char *argv[])
 	return 0;
 }
 
+int main_uniqmer(int argc, char *argv[])
+{
+	yak_ch_t *h = 0;
+	char *fn_in = 0, *fn_out = 0;
+	int c, i;
+	yak_copt_t opt;
+	ketopt_t o = KETOPT_INIT;
+	yak_copt_init(&opt);
+	opt.chunk_size = mm_parse_num("4g");
+	while ((c = ketopt(&o, argc, argv, 1, "k:p:K:t:i:o:", 0)) >= 0) {
+		if (c == 'k') opt.k = atoi(o.arg);
+		else if (c == 'p') opt.pre = atoi(o.arg);
+		else if (c == 'K') opt.chunk_size = mm_parse_num(o.arg);
+		else if (c == 't') opt.n_thread = atoi(o.arg);
+		else if (c == 'i') fn_in = o.arg;
+		else if (c == 'o') fn_out = o.arg;
+	}
+	if (argc - o.ind < 1) {
+		fprintf(stderr, "Usage: yak uniqmer [options] <in1.fa> [in2.fa [...]]\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -k INT     k-mer size [%d]\n", opt.k);
+		fprintf(stderr, "  -p INT     prefix length [%d]\n", opt.pre);
+		fprintf(stderr, "  -t INT     number of worker threads [%d]\n", opt.n_thread);
+		fprintf(stderr, "  -K INT     chunk size [4g]\n");
+		fprintf(stderr, "  -i FILE    input k-mer dump []\n");
+		fprintf(stderr, "  -o FILE    output k-mer dump []\n");
+		fprintf(stderr, "Note: if input and output file names are identical, input is overwritten\n");
+		return 1;
+	}
+	if (opt.pre < YAK_COUNTER_BITS) {
+		fprintf(stderr, "ERROR: -p should be at least %d\n", YAK_COUNTER_BITS);
+		return 1;
+	}
+	if (opt.k >= 32) {
+		fprintf(stderr, "ERROR: -k must be <=31\n");
+		return 1;
+	}
+	if (fn_in) h = yak_ch_restore(fn_in);
+	for (i = o.ind; i < argc; ++i) {
+		yak_ch_t *h1;
+		h1 = yak_count(argv[i], &opt, 0);
+		if (h == 0) {
+			h = h1;
+			yak_ch_shrink(h, 1, 1, opt.n_thread);
+		} else {
+			yak_ch_uniqmerge(h, h1, 1, 1, opt.n_thread); // h1 is destroyed in this call
+		}
+		fprintf(stderr, "[M::%s::%.3f*%.2f] processed file %s; %ld distinct k-mers in the hash table\n", __func__,
+				yak_realtime(), yak_cputime() / yak_realtime(), argv[i], (long)h->tot);
+	}
+	if (fn_out) yak_ch_dump(h, fn_out);
+	yak_ch_destroy(h);
+	return 0;
+}
+
 int main_qv(int argc, char *argv[])
 {
 	yak_qopt_t opt;
@@ -130,6 +185,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Usage: yak <command> <argument>\n");
 		fprintf(stderr, "Command:\n");
 		fprintf(stderr, "  count     count k-mers\n");
+		fprintf(stderr, "  uniqmer   collect unique k-mers\n");
 		fprintf(stderr, "  qv        evaluate quality values\n");
 		fprintf(stderr, "  triobin   trio binning\n");
 		fprintf(stderr, "  trioeval  evaluate phasing accuracy with trio\n");
@@ -140,6 +196,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	if (strcmp(argv[1], "count") == 0) ret = main_count(argc-1, argv+1);
+	else if (strcmp(argv[1], "uniqmer") == 0) ret = main_uniqmer(argc-1, argv+1);
 	else if (strcmp(argv[1], "qv") == 0) ret = main_qv(argc-1, argv+1);
 	else if (strcmp(argv[1], "triobin") == 0) ret = main_triobin(argc-1, argv+1);
 	else if (strcmp(argv[1], "trioeval") == 0) ret = main_trioeval(argc-1, argv+1);

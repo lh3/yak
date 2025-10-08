@@ -183,6 +183,50 @@ void yak_ch_shrink(yak_ch_t *h, int min, int max, int n_thread)
 		h->tot += kh_size(h->h[i].h);
 }
 
+/*************
+ * uniqmerge *
+ *************/
+
+typedef struct {
+	int min, max;
+	yak_ch_t *h0, *h1;
+} uniqmerge_aux_t;
+
+static void worker_uniqmerge(void *data, long i, int tid)
+{
+	khint_t k, l;
+	uniqmerge_aux_t *a = (uniqmerge_aux_t*)data;
+	yak_ch_t *h0 = a->h0, *h1 = a->h1;
+	yak_ht_t *g0 = h0->h[i].h, *g1 = h1->h[i].h, *f;
+	f = yak_ht_init();
+	yak_ht_resize(f, kh_size(g0));
+	for (k = 0; k < kh_end(g0); ++k) {
+		if (kh_exist(g0, k)) {
+			int absent, c;
+			l = yak_ht_get(g1, kh_key(g0, k));
+			if (l == kh_end(g0)) continue; // not found in h1
+			c = (kh_key(g1, l) & YAK_MAX_COUNT);
+			if (c >= a->min && c <= a->max)
+				yak_ht_put(f, kh_key(g0, k), &absent);
+		}
+	}
+	yak_ht_destroy(g0);
+	yak_ht_destroy(g1);
+	if (h1->h[i].b) yak_bf_destroy(h1->h[i].b);
+	h0->h[i].h = f;
+}
+
+void yak_ch_uniqmerge(yak_ch_t *h0, yak_ch_t *h1, int min, int max, int n_thread) // h1 merged into h0; h1 is destroyed afterwards
+{
+	uniqmerge_aux_t a;
+	int i;
+	a.h0 = h0, a.h1 = h1, a.min = min, a.max = max;
+	kt_for(n_thread, worker_uniqmerge, &a, 1<<h0->pre);
+	free(h1->h); free(h1);
+	for (i = 0, h0->tot = 0; i < 1<<h0->pre; ++i)
+		h0->tot += kh_size(h0->h[i].h);
+}
+
 /*******
  * I/O *
  *******/

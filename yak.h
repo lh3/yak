@@ -1,7 +1,7 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAKS_VERSION "0.1-r69-dirty"
+#define YAKS_VERSION "0.1-r72-dirty"
 
 #include <stdint.h>
 
@@ -82,6 +82,8 @@ int yak_ch_get(const yak_ch_t *h, uint64_t x);
 void yak_ch_clear(yak_ch_t *h, int n_thread);
 void yak_ch_hist(const yak_ch_t *h, int64_t cnt[YAK_N_COUNTS], int n_thread);
 void yak_ch_shrink(yak_ch_t *h, int min, int max, int n_thread);
+void yak_ch_uniqmerge(yak_ch_t *h0, yak_ch_t *h1, int min, int max, int n_thread); // merge h1 into h0 and destroy h1 afterwards
+
 int yak_ch_dump(const yak_ch_t *h, const char *fn);
 yak_ch_t *yak_ch_restore(const char *fn);
 yak_ch_t *yak_ch_restore_core(yak_ch_t *ch0, const char *fn, int mode, ...);
