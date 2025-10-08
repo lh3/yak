@@ -227,6 +227,25 @@ void yak_ch_uniqmerge(yak_ch_t *h0, yak_ch_t *h1, int min, int max, int n_thread
 		h0->tot += kh_size(h0->h[i].h);
 }
 
+/**********
+ * getseq *
+ **********/
+
+uint64_t *yak_ch_getseq(const yak_ch_t *h, int w, uint32_t *n)
+{
+	uint64_t *a, i, mask = (1ULL<<h->k*2) - 1;
+	khint_t k;
+	yak_ht_t *g;
+	assert(h->k < 32 && w < 1<<h->pre);
+	g = h->h[w].h;
+	*n = kh_size(g);
+	CALLOC(a, *n);
+	for (i = 0, k = 0; k < kh_end(g); ++k)
+		if (kh_exist(g, k))
+			a[i++] = yak_hash64_inv(kh_key(g, k) >> YAK_COUNTER_BITS << h->pre | w, mask);
+	return a;
+}
+
 /*******
  * I/O *
  *******/

@@ -38,6 +38,35 @@ static inline uint64_t yak_hash_long(uint64_t x[4])
 	return yak_hash64_64(x[j<<1|0]) + yak_hash64_64(x[j<<1|1]);
 }
 
+static inline uint64_t yak_hash64_inv(uint64_t key, uint64_t mask)
+{
+	uint64_t tmp;
+	// Invert key = key + (key << 31)
+	tmp = (key - (key << 31));
+	key = (key - (tmp << 31)) & mask;
+	// Invert key = key ^ (key >> 28)
+	tmp = key ^ key >> 28;
+	key = key ^ tmp >> 28;
+	// Invert key *= 21
+	key = (key * 14933078535860113213ull) & mask;
+	// Invert key = key ^ (key >> 14)
+	tmp = key ^ key >> 14;
+	tmp = key ^ tmp >> 14;
+	tmp = key ^ tmp >> 14;
+	key = key ^ tmp >> 14;
+	// Invert key *= 265
+	key = (key * 15244667743933553977ull) & mask;
+	// Invert key = key ^ (key >> 24)
+	tmp = key ^ key >> 24;
+	key = key ^ tmp >> 24;
+	// Invert key = (~key) + (key << 21)
+	tmp = ~key;
+	tmp = ~(key - (tmp << 21));
+	tmp = ~(key - (tmp << 21));
+	key = ~(key - (tmp << 21)) & mask;
+	return key;
+}
+
 double yak_cputime(void);
 void yak_reset_realtime(void);
 double yak_realtime(void);

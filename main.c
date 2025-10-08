@@ -175,6 +175,39 @@ int main_qv(int argc, char *argv[])
 	return 0;
 }
 
+int main_print(int argc, char *argv[])
+{
+	char buf[65];
+	yak_ch_t *h = 0;
+	int c, i;
+	uint64_t id = 0;
+	ketopt_t o = KETOPT_INIT;
+	while ((c = ketopt(&o, argc, argv, 1, "", 0)) >= 0) {
+	}
+	if (argc - o.ind < 1) {
+		fprintf(stderr, "Usage: yak print <in.yak>\n");
+		return 1;
+	}
+	h = yak_ch_restore(argv[o.ind]);
+	assert(h);
+	for (i = 0; i < 1<<h->pre; ++i) {
+		uint64_t *a;
+		uint32_t n;
+		int j, k;
+		a = yak_ch_getseq(h, i, &n);
+		for (j = 0; j < n; ++j) {
+			for (k = 0; k < h->k; ++k)
+				buf[h->k - k - 1] = "ACGT"[a[j]>>k*2 & 0x3];
+			buf[h->k] = 0;
+			++id;
+			printf(">%ld\n", (long)id);
+			puts(buf);
+		}
+	}
+	yak_ch_destroy(h);
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	extern int main_triobin(int argc, char *argv[]);
@@ -189,6 +222,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Command:\n");
 		fprintf(stderr, "  count     count k-mers\n");
 		fprintf(stderr, "  uniqmer   collect unique k-mers\n");
+		fprintf(stderr, "  print     print k-mers for k<=31\n");
 		fprintf(stderr, "  qv        evaluate quality values\n");
 		fprintf(stderr, "  triobin   trio binning\n");
 		fprintf(stderr, "  trioeval  evaluate phasing accuracy with trio\n");
@@ -200,6 +234,7 @@ int main(int argc, char *argv[])
 	}
 	if (strcmp(argv[1], "count") == 0) ret = main_count(argc-1, argv+1);
 	else if (strcmp(argv[1], "uniqmer") == 0) ret = main_uniqmer(argc-1, argv+1);
+	else if (strcmp(argv[1], "print") == 0) ret = main_print(argc-1, argv+1);
 	else if (strcmp(argv[1], "qv") == 0) ret = main_qv(argc-1, argv+1);
 	else if (strcmp(argv[1], "triobin") == 0) ret = main_triobin(argc-1, argv+1);
 	else if (strcmp(argv[1], "trioeval") == 0) ret = main_trioeval(argc-1, argv+1);
