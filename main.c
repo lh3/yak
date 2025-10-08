@@ -71,7 +71,7 @@ int main_uniqmer(int argc, char *argv[])
 	yak_copt_t opt;
 	ketopt_t o = KETOPT_INIT;
 	yak_copt_init(&opt);
-	opt.chunk_size = mm_parse_num("4g");
+	opt.chunk_size = mm_parse_num("1.9g");
 	while ((c = ketopt(&o, argc, argv, 1, "k:p:K:t:i:o:", 0)) >= 0) {
 		if (c == 'k') opt.k = atoi(o.arg);
 		else if (c == 'p') opt.pre = atoi(o.arg);
@@ -86,7 +86,7 @@ int main_uniqmer(int argc, char *argv[])
 		fprintf(stderr, "  -k INT     k-mer size [%d]\n", opt.k);
 		fprintf(stderr, "  -p INT     prefix length [%d]\n", opt.pre);
 		fprintf(stderr, "  -t INT     number of worker threads [%d]\n", opt.n_thread);
-		fprintf(stderr, "  -K INT     chunk size [4g]\n");
+		fprintf(stderr, "  -K INT     chunk size [1.9g]\n");
 		fprintf(stderr, "  -i FILE    input k-mer dump []\n");
 		fprintf(stderr, "  -o FILE    output k-mer dump []\n");
 		fprintf(stderr, "Note: if input and output file names are identical, input is overwritten\n");
