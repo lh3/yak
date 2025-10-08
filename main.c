@@ -100,7 +100,10 @@ int main_uniqmer(int argc, char *argv[])
 		fprintf(stderr, "ERROR: -k must be <=31\n");
 		return 1;
 	}
-	if (fn_in) h = yak_ch_restore(fn_in);
+	if (fn_in) {
+		h = yak_ch_restore(fn_in);
+		if (h == 0) fprintf(stderr, "WARNING: failed to read %s. Continue anyway\n", fn_in);
+	}
 	for (i = o.ind; i < argc; ++i) {
 		yak_ch_t *h1;
 		h1 = yak_count(argv[i], &opt, 0);
