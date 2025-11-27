@@ -184,19 +184,20 @@ void yak_ch_shrink(yak_ch_t *h, int min, int max, int n_thread)
 		h->tot += kh_size(h->h[i].h);
 }
 
-/************
- * selmerge *
- ************/
+/*********
+ * merge *
+ *********/
 
 typedef struct {
 	int min, max;
+	yak_ch_mtype_t type;
 	yak_ch_t *h0, *h1;
-} selmerge_aux_t;
+} merge_aux_t;
 
-static void worker_selmerge(void *data, long i, int tid)
+static void worker_merge(void *data, long i, int tid)
 {
 	khint_t k, l;
-	selmerge_aux_t *a = (selmerge_aux_t*)data;
+	merge_aux_t *a = (merge_aux_t*)data;
 	yak_ch_t *h0 = a->h0, *h1 = a->h1;
 	yak_ht_t *g0 = h0->h[i].h, *g1 = h1->h[i].h, *f;
 	f = yak_ht_init();
@@ -205,9 +206,9 @@ static void worker_selmerge(void *data, long i, int tid)
 		if (kh_exist(g0, k)) {
 			int absent, c;
 			l = yak_ht_get(g1, kh_key(g0, k));
-			if (l == kh_end(g0)) continue; // not found in h1
-			c = (kh_key(g1, l) & YAK_MAX_COUNT);
-			if (c >= a->min && c <= a->max)
+			c = l != kh_end(g0)? (kh_key(g1, l) & YAK_MAX_COUNT) : 0;
+			if (c > a->max) continue;
+			if (a->type == YAK_MT_ISEC_MAX || c >= a->min)
 				yak_ht_put(f, kh_key(g0, k), &absent);
 		}
 	}
@@ -217,10 +218,10 @@ static void worker_selmerge(void *data, long i, int tid)
 	h0->h[i].h = f;
 }
 
-static void worker_selmerge_add(void *data, long i, int tid)
+static void worker_merge_add(void *data, long i, int tid)
 {
 	khint_t k;
-	selmerge_aux_t *a = (selmerge_aux_t*)data;
+	merge_aux_t *a = (merge_aux_t*)data;
 	yak_ch_t *h0 = a->h0, *h1 = a->h1;
 	yak_ht_t *g0 = h0->h[i].h, *g1 = h1->h[i].h;
 	for (k = 0; k < kh_end(g1); ++k) {
@@ -235,16 +236,16 @@ static void worker_selmerge_add(void *data, long i, int tid)
 	if (h1->h[i].b) yak_bf_destroy(h1->h[i].b);
 }
 
-void yak_ch_selmerge(yak_ch_t *h0, yak_ch_t *h1, int min, int max, int add_new, int n_thread) // h1 merged into h0; h1 is destroyed afterwards
+void yak_ch_merge(yak_ch_t *h0, yak_ch_t *h1, int min, int max, yak_ch_mtype_t type, int n_thread) // h1 merged into h0; h1 is destroyed afterwards
 {
-	selmerge_aux_t a;
+	merge_aux_t a;
 	int i;
-	a.h0 = h0, a.h1 = h1, a.min = min;
-	a.max = max >= min && max <= YAK_MAX_COUNT? max : YAK_MAX_COUNT;
-	if (add_new)
-		kt_for(n_thread, worker_selmerge_add, &a, 1<<h0->pre);
-	else
-		kt_for(n_thread, worker_selmerge, &a, 1<<h0->pre);
+	a.h0 = h0, a.h1 = h1, a.type = type, a.min = min;
+	a.max = type == YAK_MT_ISEC_MAX || (max >= min && max <= YAK_MAX_COUNT)? max : YAK_MAX_COUNT;
+	if (type == YAK_MT_ADD)
+		kt_for(n_thread, worker_merge_add, &a, 1<<h0->pre);
+	else if (type == YAK_MT_ISEC_RANGE || type == YAK_MT_ISEC_MAX)
+		kt_for(n_thread, worker_merge, &a, 1<<h0->pre);
 	free(h1->h); free(h1);
 	for (i = 0, h0->tot = 0; i < 1<<h0->pre; ++i)
 		h0->tot += kh_size(h0->h[i].h);
