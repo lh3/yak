@@ -67,15 +67,16 @@ int main_cntasm(int argc, char *argv[])
 {
 	yak_ch_t *h = 0;
 	char *fn_in = 0, *fn_out = 0;
-	int c, i, min_cnt = 1, max_cnt = 1;
+	int c, i, min_cnt = 1, max_cnt = 1, add_new = 0;
 	yak_copt_t opt;
 	ketopt_t o = KETOPT_INIT;
 	yak_copt_init(&opt);
 	opt.chunk_size = mm_parse_num("1.9g");
-	while ((c = ketopt(&o, argc, argv, 1, "k:p:K:t:i:o:c:x:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "k:p:K:t:i:o:c:x:a", 0)) >= 0) {
 		if (c == 'k') opt.k = atoi(o.arg);
 		else if (c == 'c') min_cnt = atoi(o.arg);
 		else if (c == 'x') max_cnt = atoi(o.arg);
+		else if (c == 'a') add_new = 1;
 		else if (c == 'p') opt.pre = atoi(o.arg);
 		else if (c == 'K') opt.chunk_size = mm_parse_num(o.arg);
 		else if (c == 't') opt.n_thread = atoi(o.arg);
@@ -88,6 +89,7 @@ int main_cntasm(int argc, char *argv[])
 		fprintf(stderr, "  -k INT     k-mer size [%d]\n", opt.k);
 		fprintf(stderr, "  -c INT     min count [%d]\n", min_cnt);
 		fprintf(stderr, "  -x INT     max count [%d]\n", max_cnt);
+		fprintf(stderr, "  -a         add new counts\n");
 		fprintf(stderr, "  -p INT     prefix length [%d]\n", opt.pre);
 		fprintf(stderr, "  -t INT     number of worker threads [%d]\n", opt.n_thread);
 		fprintf(stderr, "  -K INT     chunk size [1.9g]\n");
@@ -115,7 +117,7 @@ int main_cntasm(int argc, char *argv[])
 			h = h1;
 			yak_ch_shrink(h, min_cnt, max_cnt, opt.n_thread);
 		} else {
-			yak_ch_selmerge(h, h1, min_cnt, max_cnt, opt.n_thread); // h1 is destroyed in this call
+			yak_ch_selmerge(h, h1, min_cnt, max_cnt, add_new, opt.n_thread); // h1 is destroyed in this call
 		}
 		fprintf(stderr, "[M::%s::%.3f*%.2f] processed file %s; %ld distinct k-mers in the hash table\n", __func__,
 				yak_realtime(), yak_cputime() / yak_realtime(), argv[i], (long)h->tot);

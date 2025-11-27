@@ -217,13 +217,34 @@ static void worker_selmerge(void *data, long i, int tid)
 	h0->h[i].h = f;
 }
 
-void yak_ch_selmerge(yak_ch_t *h0, yak_ch_t *h1, int min, int max, int n_thread) // h1 merged into h0; h1 is destroyed afterwards
+static void worker_selmerge_add(void *data, long i, int tid)
+{
+	khint_t k;
+	selmerge_aux_t *a = (selmerge_aux_t*)data;
+	yak_ch_t *h0 = a->h0, *h1 = a->h1;
+	yak_ht_t *g0 = h0->h[i].h, *g1 = h1->h[i].h;
+	for (k = 0; k < kh_end(g1); ++k) {
+		if (kh_exist(g1, k)) {
+			int absent, c;
+			c = (kh_key(g1, k) & YAK_MAX_COUNT);
+			if (c >= a->min && c <= a->max)
+				yak_ht_put(g0, kh_key(g1, k), &absent);
+		}
+	}
+	yak_ht_destroy(g1);
+	if (h1->h[i].b) yak_bf_destroy(h1->h[i].b);
+}
+
+void yak_ch_selmerge(yak_ch_t *h0, yak_ch_t *h1, int min, int max, int add_new, int n_thread) // h1 merged into h0; h1 is destroyed afterwards
 {
 	selmerge_aux_t a;
 	int i;
 	a.h0 = h0, a.h1 = h1, a.min = min;
 	a.max = max >= min && max <= YAK_MAX_COUNT? max : YAK_MAX_COUNT;
-	kt_for(n_thread, worker_selmerge, &a, 1<<h0->pre);
+	if (add_new)
+		kt_for(n_thread, worker_selmerge_add, &a, 1<<h0->pre);
+	else
+		kt_for(n_thread, worker_selmerge, &a, 1<<h0->pre);
 	free(h1->h); free(h1);
 	for (i = 0, h0->tot = 0; i < 1<<h0->pre; ++i)
 		h0->tot += kh_size(h0->h[i].h);
