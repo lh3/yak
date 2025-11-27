@@ -63,17 +63,19 @@ int main_count(int argc, char *argv[])
 	return 0;
 }
 
-int main_uniqmer(int argc, char *argv[])
+int main_cntasm(int argc, char *argv[])
 {
 	yak_ch_t *h = 0;
 	char *fn_in = 0, *fn_out = 0;
-	int c, i;
+	int c, i, min_cnt = 1, max_cnt = 1;
 	yak_copt_t opt;
 	ketopt_t o = KETOPT_INIT;
 	yak_copt_init(&opt);
 	opt.chunk_size = mm_parse_num("1.9g");
-	while ((c = ketopt(&o, argc, argv, 1, "k:p:K:t:i:o:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "k:p:K:t:i:o:c:x:", 0)) >= 0) {
 		if (c == 'k') opt.k = atoi(o.arg);
+		else if (c == 'c') min_cnt = atoi(o.arg);
+		else if (c == 'x') max_cnt = atoi(o.arg);
 		else if (c == 'p') opt.pre = atoi(o.arg);
 		else if (c == 'K') opt.chunk_size = mm_parse_num(o.arg);
 		else if (c == 't') opt.n_thread = atoi(o.arg);
@@ -81,9 +83,11 @@ int main_uniqmer(int argc, char *argv[])
 		else if (c == 'o') fn_out = o.arg;
 	}
 	if (argc - o.ind < 1) {
-		fprintf(stderr, "Usage: yak uniqmer [options] <in1.fa> [in2.fa [...]]\n");
+		fprintf(stderr, "Usage: yak cntasm [options] <in1.fa> [in2.fa [...]]\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -k INT     k-mer size [%d]\n", opt.k);
+		fprintf(stderr, "  -c INT     min count [%d]\n", min_cnt);
+		fprintf(stderr, "  -x INT     max count [%d]\n", max_cnt);
 		fprintf(stderr, "  -p INT     prefix length [%d]\n", opt.pre);
 		fprintf(stderr, "  -t INT     number of worker threads [%d]\n", opt.n_thread);
 		fprintf(stderr, "  -K INT     chunk size [1.9g]\n");
@@ -109,9 +113,9 @@ int main_uniqmer(int argc, char *argv[])
 		h1 = yak_count(argv[i], &opt, 0);
 		if (h == 0) {
 			h = h1;
-			yak_ch_shrink(h, 1, 1, opt.n_thread);
+			yak_ch_shrink(h, min_cnt, max_cnt, opt.n_thread);
 		} else {
-			yak_ch_uniqmerge(h, h1, 1, 1, opt.n_thread); // h1 is destroyed in this call
+			yak_ch_selmerge(h, h1, min_cnt, max_cnt, opt.n_thread); // h1 is destroyed in this call
 		}
 		fprintf(stderr, "[M::%s::%.3f*%.2f] processed file %s; %ld distinct k-mers in the hash table\n", __func__,
 				yak_realtime(), yak_cputime() / yak_realtime(), argv[i], (long)h->tot);
@@ -218,7 +222,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Usage: yak <command> <argument>\n");
 		fprintf(stderr, "Command:\n");
 		fprintf(stderr, "  count     count k-mers\n");
-		fprintf(stderr, "  uniqmer   collect unique k-mers\n");
+		fprintf(stderr, "  cntasm    collate counts per dataset\n");
 		fprintf(stderr, "  print     print k-mers for k<=31\n");
 		fprintf(stderr, "  qv        evaluate quality values\n");
 		fprintf(stderr, "  triobin   trio binning\n");
@@ -230,7 +234,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	if (strcmp(argv[1], "count") == 0) ret = main_count(argc-1, argv+1);
-	else if (strcmp(argv[1], "uniqmer") == 0) ret = main_uniqmer(argc-1, argv+1);
+	else if (strcmp(argv[1], "cntasm") == 0) ret = main_cntasm(argc-1, argv+1);
 	else if (strcmp(argv[1], "print") == 0) ret = main_print(argc-1, argv+1);
 	else if (strcmp(argv[1], "qv") == 0) ret = main_qv(argc-1, argv+1);
 	else if (strcmp(argv[1], "triobin") == 0) ret = main_triobin(argc-1, argv+1);
