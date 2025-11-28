@@ -164,3 +164,30 @@ yak_ch_t *yak_count(const char *fn, const yak_copt_t *opt, yak_ch_t *h0)
 	gzclose(fp);
 	return pl.h;
 }
+
+void yak_recount(const char *fn, yak_ch_t *h)
+{
+	gzFile fp;
+	kseq_t *ks;
+	fp = fn == 0 || strcmp(fn, "-") == 0? gzdopen(0, "r") : gzopen(fn, "r");
+	if (fp == 0) return;
+	ks = kseq_init(fp);
+	yak_ch_clear(h, 1);
+	while (kseq_read(ks) >= 0) {
+		int64_t i, l;
+		uint64_t x[2], mask = (1ULL<<h->k*2) - 1, shift = (h->k - 1) * 2;
+		for (i = l = 0, x[0] = x[1] = 0; i < ks->seq.l; ++i) {
+			int c = seq_nt4_table[(uint8_t)ks->seq.s[i]];
+			if (c < 4) {
+				x[0] = (x[0] << 2 | c) & mask;
+				x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;
+				if (++l >= h->k) { // we find a k-mer
+					uint64_t y = x[0] < x[1]? x[0] : x[1];
+					yak_ch_inc(h, y);
+				}
+			} else l = 0, x[0] = x[1] = 0; // if there is an "N", restart
+		}
+	}
+	kseq_destroy(ks);
+	gzclose(fp);
+}

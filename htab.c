@@ -77,10 +77,23 @@ int yak_ch_insert_list(yak_ch_t *h, int create_new, int n, const uint64_t *a)
 	return n_ins;
 }
 
-int yak_ch_get(const yak_ch_t *h, uint64_t x)
+int yak_ch_inc(yak_ch_t *h, uint64_t x)
 {
 	int mask = (1<<h->pre) - 1;
 	yak_ht_t *g = h->h[x&mask].h;
+	khint_t k;
+	k = yak_ht_get(g, x >> h->pre << YAK_COUNTER_BITS);
+	if (k != kh_end(g)) {
+		if ((kh_key(g, k)&YAK_MAX_COUNT) < YAK_MAX_COUNT)
+			++kh_key(g, k);
+		return kh_key(g, k)&YAK_MAX_COUNT;
+	} else return -1;
+}
+
+int yak_ch_get(const yak_ch_t *h, uint64_t x)
+{
+	int mask = (1<<h->pre) - 1;
+	const yak_ht_t *g = h->h[x&mask].h;
 	khint_t k;
 	k = yak_ht_get(g, x >> h->pre << YAK_COUNTER_BITS);
 	return k == kh_end(g)? -1 : kh_key(g, k)&YAK_MAX_COUNT;

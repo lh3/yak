@@ -1,7 +1,7 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAKS_VERSION "0.1-r79-dirty"
+#define YAKS_VERSION "0.1-r80-dirty"
 
 #include <stdint.h>
 
@@ -80,6 +80,7 @@ void yak_ch_destroy(yak_ch_t *h);
 void yak_ch_destroy_bf(yak_ch_t *h);
 int yak_ch_insert_list(yak_ch_t *h, int create_new, int n, const uint64_t *a);
 int yak_ch_get(const yak_ch_t *h, uint64_t x);
+int yak_ch_inc(yak_ch_t *h, uint64_t x);
 uint64_t *yak_ch_getseq(const yak_ch_t *h, int w, uint32_t *n);
 
 void yak_ch_clear(yak_ch_t *h, int n_thread);
@@ -92,6 +93,7 @@ yak_ch_t *yak_ch_restore(const char *fn);
 yak_ch_t *yak_ch_restore_core(yak_ch_t *ch0, const char *fn, int mode, ...);
 
 yak_ch_t *yak_count(const char *fn, const yak_copt_t *opt, yak_ch_t *h0);
+void yak_recount(const char *fn, yak_ch_t *h);
 
 void yak_qopt_init(yak_qopt_t *opt);
 void yak_qv(const yak_qopt_t *opt, const char *fn, const yak_ch_t *ch, int64_t *cnt);

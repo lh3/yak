@@ -63,6 +63,29 @@ int main_count(int argc, char *argv[])
 	return 0;
 }
 
+int main_recount(int argc, char *argv[])
+{
+	yak_ch_t *h;
+	int c;
+	char *fn_out = "-";
+	ketopt_t o = KETOPT_INIT;
+	while ((c = ketopt(&o, argc, argv, 1, "o:", 0)) >= 0) {
+		if (c == 'o') fn_out = o.arg;
+	}
+	if (argc - o.ind < 1) {
+		fprintf(stderr, "Usage: yak recount [-o <out.yak>] <kmer.yak> <seq.fa>\n");
+		return 1;
+	}
+	h = yak_ch_restore(argv[o.ind]);
+	if (h == 0) {
+		fprintf(stderr, "ERROR: failed to load file %s\n", argv[o.ind]);
+		return 1;
+	}
+	yak_recount(argv[o.ind+1], h);
+	yak_ch_dump(h, fn_out);
+	return 0;
+}
+
 int main_cntasm(int argc, char *argv[])
 {
 	yak_ch_t *h = 0;
@@ -232,6 +255,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Usage: yak <command> <argument>\n");
 		fprintf(stderr, "Command:\n");
 		fprintf(stderr, "  count     count k-mers\n");
+		fprintf(stderr, "  recount   count existing k-mers\n");
 		fprintf(stderr, "  cntasm    collate counts per dataset\n");
 		fprintf(stderr, "  print     print k-mers for k<=31\n");
 		fprintf(stderr, "  qv        evaluate quality values\n");
@@ -244,6 +268,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	if (strcmp(argv[1], "count") == 0) ret = main_count(argc-1, argv+1);
+	else if (strcmp(argv[1], "recount") == 0) ret = main_recount(argc-1, argv+1);
 	else if (strcmp(argv[1], "cntasm") == 0) ret = main_cntasm(argc-1, argv+1);
 	else if (strcmp(argv[1], "print") == 0) ret = main_print(argc-1, argv+1);
 	else if (strcmp(argv[1], "qv") == 0) ret = main_qv(argc-1, argv+1);
