@@ -268,9 +268,10 @@ void yak_ch_merge(yak_ch_t *h0, yak_ch_t *h1, int min, int max, yak_ch_mtype_t t
  * getseq *
  **********/
 
-uint64_t *yak_ch_getseq(const yak_ch_t *h, int w, uint32_t *n)
+yak_knt_t *yak_ch_getseq(const yak_ch_t *h, int w, uint32_t *n)
 {
-	uint64_t *a, i, mask = (1ULL<<h->k*2) - 1;
+	yak_knt_t *a;
+	uint64_t i, mask = (1ULL<<h->k*2) - 1;
 	khint_t k;
 	yak_ht_t *g;
 	assert(h->k < 32 && w < 1<<h->pre);
@@ -279,7 +280,7 @@ uint64_t *yak_ch_getseq(const yak_ch_t *h, int w, uint32_t *n)
 	CALLOC(a, *n);
 	for (i = 0, k = 0; k < kh_end(g); ++k)
 		if (kh_exist(g, k))
-			a[i++] = yak_hash64_inv(kh_key(g, k) >> YAK_COUNTER_BITS << h->pre | w, mask);
+			a[i].x = yak_hash64_inv(kh_key(g, k) >> YAK_COUNTER_BITS << h->pre | w, mask), a[i++].c = kh_key(g, k)&YAK_MAX_COUNT;
 	return a;
 }
 

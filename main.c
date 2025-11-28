@@ -216,26 +216,33 @@ int main_print(int argc, char *argv[])
 {
 	char buf[65];
 	yak_ch_t *h = 0;
-	int c, i;
+	int c, i, out_cnt = 0;
 	ketopt_t o = KETOPT_INIT;
-	while ((c = ketopt(&o, argc, argv, 1, "", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "c", 0)) >= 0) {
+		if (o.opt == 'c') out_cnt = 1;
 	}
 	if (argc - o.ind < 1) {
-		fprintf(stderr, "Usage: yak print <in.yak>\n");
+		fprintf(stderr, "Usage: yak print [-c] <in.yak>\n");
 		return 1;
 	}
 	h = yak_ch_restore(argv[o.ind]);
 	assert(h);
 	for (i = 0; i < 1<<h->pre; ++i) {
-		uint64_t *a;
+		yak_knt_t *a;
 		uint32_t n;
 		int j, k;
 		a = yak_ch_getseq(h, i, &n);
 		for (j = 0; j < n; ++j) {
 			for (k = 0; k < h->k; ++k)
-				buf[h->k - k - 1] = "ACGT"[a[j]>>k*2 & 0x3];
+				buf[h->k - k - 1] = "ACGT"[a[j].x>>k*2 & 0x3];
 			buf[h->k] = 0;
-			puts(buf);
+			if (out_cnt == 0)
+				puts(buf);
+			else {
+				fputs(buf, stdout);
+				fputc('\t',stdout);
+				fprintf(stdout, "%d\n", a[j].c);
+			}
 		}
 	}
 	yak_ch_destroy(h);

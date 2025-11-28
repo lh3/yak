@@ -1,7 +1,7 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAKS_VERSION "0.1-r80-dirty"
+#define YAKS_VERSION "0.1-r81-dirty"
 
 #include <stdint.h>
 
@@ -64,6 +64,11 @@ typedef struct {
 	yak_ch1_t *h;
 } yak_ch_t;
 
+typedef struct {
+	uint64_t x;
+	int c;
+} yak_knt_t;
+
 typedef enum { YAK_MT_ISEC_RANGE, YAK_MT_ISEC_MAX, YAK_MT_ADD } yak_ch_mtype_t;
 
 extern int yak_verbose;
@@ -81,7 +86,7 @@ void yak_ch_destroy_bf(yak_ch_t *h);
 int yak_ch_insert_list(yak_ch_t *h, int create_new, int n, const uint64_t *a);
 int yak_ch_get(const yak_ch_t *h, uint64_t x);
 int yak_ch_inc(yak_ch_t *h, uint64_t x);
-uint64_t *yak_ch_getseq(const yak_ch_t *h, int w, uint32_t *n);
+yak_knt_t *yak_ch_getseq(const yak_ch_t *h, int w, uint32_t *n);
 
 void yak_ch_clear(yak_ch_t *h, int n_thread);
 void yak_ch_hist(const yak_ch_t *h, int64_t cnt[YAK_N_COUNTS], int n_thread);

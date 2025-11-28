@@ -183,7 +183,7 @@ void yak_recount(const char *fn, yak_ch_t *h)
 				x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;
 				if (++l >= h->k) { // we find a k-mer
 					uint64_t y = x[0] < x[1]? x[0] : x[1];
-					yak_ch_inc(h, y);
+					yak_ch_inc(h, yak_hash64(y, mask));
 				}
 			} else l = 0, x[0] = x[1] = 0; // if there is an "N", restart
 		}
