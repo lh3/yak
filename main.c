@@ -10,6 +10,7 @@
 #include "ketopt.h"
 #include "yak-priv.h"
 
+
 int main_count(int argc, char *argv[])
 {
 	yak_ch_t *h;
@@ -254,6 +255,7 @@ int main_print(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+	extern int main_setops(int argc, char *argv[]);
 	extern int main_triobin(int argc, char *argv[]);
 	extern int main_trioeval(int argc, char *argv[]);
 	extern int main_inspect(int argc, char *argv[]);
@@ -274,6 +276,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  inspect   k-mer hash tables\n");
 		fprintf(stderr, "  chkerr    check errors\n");
 		fprintf(stderr, "  sexchr    count sex-chromosome-specific k-mers\n");
+		fprintf(stderr, "  setops    calculate set operations between .yak tables\n");
 		fprintf(stderr, "  version   print version number\n");
 		return 1;
 	}
@@ -287,6 +290,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "inspect") == 0) ret = main_inspect(argc-1, argv+1);
 	else if (strcmp(argv[1], "chkerr") == 0) ret = main_chkerr(argc-1, argv+1);
 	else if (strcmp(argv[1], "sexchr") == 0) ret = main_sexchr(argc-1, argv+1);
+	else if (strcmp(argv[1], "setops") == 0) ret = main_setops(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		puts(YAKS_VERSION);
 		return 0;
