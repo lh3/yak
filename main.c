@@ -228,6 +228,7 @@ int main_print(int argc, char *argv[])
 		return 1;
 	}
 	h = yak_ch_restore(argv[o.ind]);
+	yak_ch_tighten(h);
 	assert(h);
 	for (i = 0; i < 1<<h->pre; ++i) {
 		yak_knt_t *a;
