@@ -356,7 +356,7 @@ yak_ch_t *yak_ch_restore_core(yak_ch_t *ch0, const char *fn, int mode, ...)
 	for (i = 0; i < 1<<ch->pre; ++i) {
 		yak_ht_t *h = ch->h[i].h;
 		fread(t, 4, 2, fp);
-		yak_ht_resize(h, t[0]);
+		yak_ht_resize(h, t[0] < t[1] * 3? t[0] : t[1] * 3);
 		for (j = 0; j < t[1]; ++j) {
 			uint64_t key;
 			fread(&key, 8, 1, fp);
