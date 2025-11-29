@@ -77,6 +77,7 @@ int main_recount(int argc, char *argv[])
 		return 1;
 	}
 	h = yak_ch_restore(argv[o.ind]);
+	yak_ch_tighten(h);
 	if (h == 0) {
 		fprintf(stderr, "ERROR: failed to load file %s\n", argv[o.ind]);
 		return 1;
@@ -153,6 +154,7 @@ int main_cntasm(int argc, char *argv[])
 		fprintf(stderr, "[M::%s::%.3f*%.2f] processed file %s; %ld distinct k-mers in the hash table\n", __func__,
 				yak_realtime(), yak_cputime() / yak_realtime(), argv[i], (long)h->tot);
 	}
+	yak_ch_tighten(h);
 	if (fn_out) yak_ch_dump(h, fn_out);
 	yak_ch_destroy(h);
 	return 0;

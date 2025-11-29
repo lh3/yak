@@ -99,6 +99,16 @@ int yak_ch_get(const yak_ch_t *h, uint64_t x)
 	return k == kh_end(g)? -1 : kh_key(g, k)&YAK_MAX_COUNT;
 }
 
+void yak_ch_tighten(yak_ch_t *h)
+{
+	int i;
+	for (i = 0; i < 1<<h->pre; ++i) {
+		yak_ht_t *g = h->h[i].h;
+		if (kh_size(g) * 3 < kh_capacity(g))
+			yak_ht_resize(g, kh_size(g) * 3);
+	}
+}
+
 /*************************
  * Clear all counts to 0 *
  *************************/
@@ -356,7 +366,7 @@ yak_ch_t *yak_ch_restore_core(yak_ch_t *ch0, const char *fn, int mode, ...)
 	for (i = 0; i < 1<<ch->pre; ++i) {
 		yak_ht_t *h = ch->h[i].h;
 		fread(t, 4, 2, fp);
-		yak_ht_resize(h, t[0] < t[1] * 3? t[0] : t[1] * 3);
+		yak_ht_resize(h, t[0]);
 		for (j = 0; j < t[1]; ++j) {
 			uint64_t key;
 			fread(&key, 8, 1, fp);

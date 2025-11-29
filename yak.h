@@ -1,7 +1,7 @@
 #ifndef YAK_H
 #define YAK_H
 
-#define YAKS_VERSION "0.1-r82-dirty"
+#define YAKS_VERSION "0.1-r83-dirty"
 
 #include <stdint.h>
 
@@ -88,6 +88,7 @@ int yak_ch_get(const yak_ch_t *h, uint64_t x);
 int yak_ch_inc(yak_ch_t *h, uint64_t x);
 yak_knt_t *yak_ch_getseq(const yak_ch_t *h, int w, uint32_t *n);
 
+void yak_ch_tighten(yak_ch_t *h);
 void yak_ch_clear(yak_ch_t *h, int n_thread);
 void yak_ch_hist(const yak_ch_t *h, int64_t cnt[YAK_N_COUNTS], int n_thread);
 void yak_ch_shrink(yak_ch_t *h, int min, int max, int n_thread);
