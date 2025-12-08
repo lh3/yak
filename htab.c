@@ -230,8 +230,7 @@ static void worker_merge(void *data, long i, int tid)
 			int absent, c;
 			l = yak_ht_get(g1, kh_key(g0, k));
 			c = l != kh_end(g0)? (kh_key(g1, l) & YAK_MAX_COUNT) : 0;
-			if (c > a->max) continue;
-			if (a->type == YAK_MT_ISEC_MAX || c >= a->min)
+			if (c <= a->max && (c >= a->min || a->type == YAK_MT_ISEC_MAX))
 				yak_ht_put(f, kh_key(g0, k), &absent);
 		}
 	}
