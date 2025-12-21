@@ -93,6 +93,7 @@ void yak_ch_clear(yak_ch_t *h, int n_thread);
 void yak_ch_hist(const yak_ch_t *h, int64_t cnt[YAK_N_COUNTS], int n_thread);
 void yak_ch_shrink(yak_ch_t *h, int min, int max, int n_thread);
 void yak_ch_merge(yak_ch_t *h0, yak_ch_t *h1, int min, int max, yak_ch_mtype_t type, int n_thread); // merge h1 into h0 and destroy h1 afterwards
+void yak_ch_setcnt(yak_ch_t *h, int cnt, int n_thread);
 
 int yak_ch_dump(const yak_ch_t *h, const char *fn);
 yak_ch_t *yak_ch_restore(const char *fn);
