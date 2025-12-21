@@ -240,32 +240,8 @@ void yak_ch_setcnt(yak_ch_t *h, int cnt, int n_thread)
 
 typedef struct {
 	int min, max;
-	yak_ch_mtype_t type;
 	yak_ch_t *h0, *h1;
 } merge_aux_t;
-
-static void worker_merge(void *data, long i, int tid)
-{
-	khint_t k, l;
-	merge_aux_t *a = (merge_aux_t*)data;
-	yak_ch_t *h0 = a->h0, *h1 = a->h1;
-	yak_ht_t *g0 = h0->h[i].h, *g1 = h1->h[i].h, *f;
-	f = yak_ht_init();
-	yak_ht_resize(f, kh_size(g0));
-	for (k = 0; k < kh_end(g0); ++k) {
-		if (kh_exist(g0, k)) {
-			int absent, c;
-			l = yak_ht_get(g1, kh_key(g0, k));
-			c = l != kh_end(g0)? (kh_key(g1, l) & YAK_MAX_COUNT) : 0;
-			if (c <= a->max && (c >= a->min || a->type == YAK_MT_ISEC_MAX))
-				yak_ht_put(f, kh_key(g0, k), &absent);
-		}
-	}
-	yak_ht_destroy(g0);
-	yak_ht_destroy(g1);
-	if (h1->h[i].b) yak_bf_destroy(h1->h[i].b);
-	h0->h[i].h = f;
-}
 
 static void worker_merge_add(void *data, long i, int tid)
 {
@@ -290,16 +266,13 @@ static void worker_merge_add(void *data, long i, int tid)
 	if (h1->h[i].b) yak_bf_destroy(h1->h[i].b);
 }
 
-void yak_ch_merge(yak_ch_t *h0, yak_ch_t *h1, int min, int max, yak_ch_mtype_t type, int n_thread) // h1 merged into h0; h1 is destroyed afterwards
+void yak_ch_merge(yak_ch_t *h0, yak_ch_t *h1, int min, int max, int n_thread) // h1 merged into h0; h1 is destroyed afterwards
 {
 	merge_aux_t a;
 	int i;
-	a.h0 = h0, a.h1 = h1, a.type = type, a.min = min;
-	a.max = type == YAK_MT_ISEC_MAX || (max >= min && max <= YAK_MAX_COUNT)? max : YAK_MAX_COUNT;
-	if (type == YAK_MT_ADD)
-		kt_for(n_thread, worker_merge_add, &a, 1<<h0->pre);
-	else if (type == YAK_MT_ISEC_RANGE || type == YAK_MT_ISEC_MAX)
-		kt_for(n_thread, worker_merge, &a, 1<<h0->pre);
+	a.h0 = h0, a.h1 = h1, a.min = min;
+	a.max = (max >= min && max <= YAK_MAX_COUNT)? max : YAK_MAX_COUNT;
+	kt_for(n_thread, worker_merge_add, &a, 1<<h0->pre);
 	free(h1->h); free(h1);
 	for (i = 0, h0->tot = 0; i < 1<<h0->pre; ++i)
 		h0->tot += kh_size(h0->h[i].h);

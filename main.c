@@ -91,18 +91,17 @@ int main_cntasm(int argc, char *argv[])
 {
 	yak_ch_t *h = 0;
 	char *fn_in = 0, *fn_out = 0;
-	int c, i, min_cnt = 1, max_cnt = 1;
-	yak_ch_mtype_t mt = YAK_MT_ISEC_RANGE;
+	int c, i, min_cnt = 1, max_cnt = 1, max_out = 0, check_n = 10;
 	yak_copt_t opt;
 	ketopt_t o = KETOPT_INIT;
 	yak_copt_init(&opt);
 	opt.chunk_size = mm_parse_num("1.9g");
-	while ((c = ketopt(&o, argc, argv, 1, "k:p:K:t:i:o:c:x:a0", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "k:p:K:t:i:o:c:x:e:s:", 0)) >= 0) {
 		if (c == 'k') opt.k = atoi(o.arg);
 		else if (c == 'c') min_cnt = atoi(o.arg);
 		else if (c == 'x') max_cnt = atoi(o.arg);
-		else if (c == 'a') mt = YAK_MT_ADD;
-		else if (c == '0') mt = YAK_MT_ISEC_MAX;
+		else if (c == 'e') max_out = atoi(o.arg);
+		else if (c == 's') check_n = atoi(o.arg);
 		else if (c == 'p') opt.pre = atoi(o.arg);
 		else if (c == 'K') opt.chunk_size = mm_parse_num(o.arg);
 		else if (c == 't') opt.n_thread = atoi(o.arg);
@@ -115,10 +114,10 @@ int main_cntasm(int argc, char *argv[])
 		fprintf(stderr, "  -k INT     k-mer size [%d]\n", opt.k);
 		fprintf(stderr, "  -c INT     min count [%d]\n", min_cnt);
 		fprintf(stderr, "  -x INT     max count [%d]\n", max_cnt);
-		fprintf(stderr, "  -a         add new counts\n");
-		fprintf(stderr, "  -0         don't drop 0 count (requiring -i)\n");
 		fprintf(stderr, "  -p INT     prefix length [%d]\n", opt.pre);
 		fprintf(stderr, "  -t INT     number of worker threads [%d]\n", opt.n_thread);
+		fprintf(stderr, "  -e INT     exclude a k-mer if absent from INT samples [%d]\n", max_out);
+		fprintf(stderr, "  -s INT     shrink the hash table every INT samples [%d]\n", check_n);
 		fprintf(stderr, "  -K INT     chunk size [1.9g]\n");
 		fprintf(stderr, "  -i FILE    input k-mer dump []\n");
 		fprintf(stderr, "  -o FILE    output k-mer dump []\n");
@@ -133,10 +132,6 @@ int main_cntasm(int argc, char *argv[])
 		fprintf(stderr, "ERROR: -k must be <=31\n");
 		return 1;
 	}
-	if (mt == YAK_MT_ISEC_MAX && fn_in == 0) {
-		fprintf(stderr, "ERROR: -0 requires -i\n");
-		return 1;
-	}
 
 	if (fn_in) {
 		h = yak_ch_restore(fn_in);
@@ -148,9 +143,12 @@ int main_cntasm(int argc, char *argv[])
 		if (h == 0) {
 			h = h1;
 			yak_ch_shrink(h, min_cnt, max_cnt, opt.n_thread);
+			yak_ch_setcnt(h, 1, opt.n_thread);
 		} else {
-			yak_ch_merge(h, h1, min_cnt, max_cnt, mt, opt.n_thread); // h1 is destroyed in this call
+			yak_ch_merge(h, h1, min_cnt, max_cnt, opt.n_thread); // h1 is destroyed in this call
 		}
+		if (i == argc - 1 || (i - o.ind + 1 > max_out && (i - o.ind + 1) % check_n == 0))
+			yak_ch_shrink(h, i - o.ind + 1 - max_out, YAK_MAX_COUNT, opt.n_thread);
 		fprintf(stderr, "[M::%s::%.3f*%.2f] processed file %s; %ld distinct k-mers in the hash table\n", __func__,
 				yak_realtime(), yak_cputime() / yak_realtime(), argv[i], (long)h->tot);
 	}
@@ -228,8 +226,8 @@ int main_print(int argc, char *argv[])
 		return 1;
 	}
 	h = yak_ch_restore(argv[o.ind]);
+	if (h == 0) return 1;
 	yak_ch_tighten(h);
-	assert(h);
 	for (i = 0; i < 1<<h->pre; ++i) {
 		yak_knt_t *a;
 		uint32_t n;
