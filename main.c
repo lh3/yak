@@ -212,6 +212,37 @@ int main_qv(int argc, char *argv[])
 	return 0;
 }
 
+int main_subtract(int argc, char *argv[])
+{
+	yak_ch_t *h0, *h1;
+	int c, n_thread = 8;
+	char *fn_out = "-";
+	ketopt_t o = KETOPT_INIT;
+	while ((c = ketopt(&o, argc, argv, 1, "t:o:", 0)) >= 0) {
+		if (c == 't') n_thread = atoi(o.arg);
+		else if (c == 'o') fn_out = o.arg;
+	}
+	if (argc - o.ind < 2) {
+		fprintf(stderr, "Usage: yak subtract [options] <in1.yak> <in2.yak>\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -t INT     number of worker threads [%d]\n", n_thread);
+		fprintf(stderr, "  -o FILE    output home file [%s]\n", fn_out);
+		return 1;
+	}
+	h0 = yak_ch_restore(argv[o.ind]);
+	h1 = yak_ch_restore(argv[o.ind+1]);
+	if (h0 == 0 || h1 == 0) {
+		fprintf(stderr, "ERROR: failed to load hash tables\n");
+		return 1;
+	}
+	yak_ch_subtract(h0, h1, n_thread);
+	yak_ch_destroy(h1);
+	yak_ch_tighten(h0);
+	yak_ch_dump(h0, fn_out);
+	yak_ch_destroy(h0);
+	return 0;
+}
+
 int main_print(int argc, char *argv[])
 {
 	char buf[65];
@@ -265,6 +296,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  count     count k-mers\n");
 		fprintf(stderr, "  recount   count existing k-mers\n");
 		fprintf(stderr, "  cntasm    collate counts per dataset\n");
+		fprintf(stderr, "  subtract  subtract k-mer sets\n");
 		fprintf(stderr, "  print     print k-mers for k<=31\n");
 		fprintf(stderr, "  qv        evaluate quality values\n");
 		fprintf(stderr, "  triobin   trio binning\n");
@@ -278,6 +310,7 @@ int main(int argc, char *argv[])
 	if (strcmp(argv[1], "count") == 0) ret = main_count(argc-1, argv+1);
 	else if (strcmp(argv[1], "recount") == 0) ret = main_recount(argc-1, argv+1);
 	else if (strcmp(argv[1], "cntasm") == 0) ret = main_cntasm(argc-1, argv+1);
+	else if (strcmp(argv[1], "subtract") == 0) ret = main_subtract(argc-1, argv+1);
 	else if (strcmp(argv[1], "print") == 0) ret = main_print(argc-1, argv+1);
 	else if (strcmp(argv[1], "qv") == 0) ret = main_qv(argc-1, argv+1);
 	else if (strcmp(argv[1], "triobin") == 0) ret = main_triobin(argc-1, argv+1);
