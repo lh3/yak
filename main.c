@@ -276,6 +276,7 @@ int main_print(int argc, char *argv[])
 				fprintf(stdout, "%d\n", a[j].c);
 			}
 		}
+		free(a);
 	}
 	yak_ch_destroy(h);
 	return 0;
