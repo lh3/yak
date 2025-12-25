@@ -305,7 +305,38 @@ void yak_ch_subtract(yak_ch_t *h0, const yak_ch_t *h1, int n_thread)
 	assert(h0->k == h1->k && h0->pre == h1->pre);
 	a.h0 = h0, a.h1 = (yak_ch_t*)h1;
 	kt_for(n_thread, worker_subtract, &a, 1<<h0->pre);
-	for (i = 0, h0->tot = 0; i < 1<<h0->pre; ++i)
+	for (i = 0, h0->tot = 0; i < (1<<h0->pre); ++i)
+		h0->tot += kh_size(h0->h[i].h);
+}
+
+static void worker_isec(void *data, long i, int tid)
+{
+	khint_t k;
+	merge_aux_t *a = (merge_aux_t*)data;
+	yak_ch_t *h0 = a->h0;
+	const yak_ch_t *h1 = a->h1;
+	yak_ht_t *g0 = h0->h[i].h, *g1 = h1->h[i].h, *f;
+	f = yak_ht_init();
+	yak_ht_resize(f, kh_size(g0));
+	for (k = 0; k < kh_end(g0); ++k) {
+		if (kh_exist(g0, k)) {
+			int absent;
+			if (yak_ht_get(g1, kh_key(g0, k)) != kh_end(g1))
+				yak_ht_put(f, kh_key(g0, k), &absent);
+		}
+	}
+	yak_ht_destroy(g0);
+	h0->h[i].h = f;
+}
+
+void yak_ch_isec(yak_ch_t *h0, const yak_ch_t *h1, int n_thread)
+{
+	merge_aux_t a;
+	int i;
+	assert(h0->k == h1->k && h0->pre == h1->pre);
+	a.h0 = h0, a.h1 = (yak_ch_t*)h1;
+	kt_for(n_thread, worker_isec, &a, 1<<h0->pre);
+	for (i = 0, h0->tot = 0; i < (1<<h0->pre); ++i)
 		h0->tot += kh_size(h0->h[i].h);
 }
 
