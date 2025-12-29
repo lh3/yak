@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <assert.h>
+#include <math.h>
 #include "kthread.h"
 #include "yak-priv.h"
 
@@ -473,3 +474,154 @@ yak_ch_t *yak_ch_restore(const char *fn)
 {
 	return yak_ch_restore_core(0, fn, YAK_LOAD_ALL);
 }
+
+
+//SET OPERATIONS
+
+struct setops_dat {
+	char **filenames;
+	yak_ch_t **hts;
+	volatile int *lhts;
+	int n_files;
+	int n_tables;
+	uint64_t *ca, *cb, *cab, *aob;
+	double *mashd;
+};
+
+void tri2rowcol(long i, size_t *row, size_t *col)
+{
+	*row = (size_t) floor(sqrt(2.0 * i + 0.25) - 0.5);  // Triangle index to 0-based row
+	*col = i-((*row+1)*((*row))/2);
+	*row +=1;
+}
+
+static void worker_setops(void *data, long i, int tid) // callback for kt_for()
+{
+	struct setops_dat *so = data;
+	khint_t k;
+
+	size_t row, col;
+	tri2rowcol(i, &row, &col);
+
+	yak_ch_t *A = yak_ch_restore(so->filenames[row]);
+	yak_ch_t *B = yak_ch_restore(so->filenames[col]);
+	//if (so->lhts[row] == 0) {
+	//	so->lhts[row] = -1;
+	//	printf("%i load %i\n", i, row);
+	//	so->hts[row] = yak_ch_restore(so->filenames[row]);
+	//	so->lhts[row] = 1;
+	//}
+	//while (so->lhts[row] == -1) {
+	//	printf("%i wait row %i %i\n", i, row, so->lhts[row] );
+	//}
+	//yak_ch_t *A = so->hts[row];
+
+	//if (so->lhts[col] == 0) {
+	//	so->lhts[col] = -1;
+	//	printf("%i load %i\n", i, col);
+	//	so->hts[col] = yak_ch_restore(so->filenames[col]);
+	//	so->lhts[col] = 1;
+	//}
+	//while (so->lhts[col] == -1) {
+	//	printf("%i wait %i %i\n", i, col, so->lhts[col] );
+	//}
+	//yak_ch_t *B = so->hts[col];
+
+	uint64_t ca=0, cb=0, cab=0, aob=0;
+	for (int t = 0; t<so->n_tables; t++) {
+		yak_ht_t *ah = A->h[t].h;
+		yak_ht_t *bh = B->h[t].h;
+		for (k = 0; k < kh_end(ah); ++k) {
+			if (!kh_exist(ah, k)) continue;
+			uint64_t x = kh_key(ah, k);
+			khint_t bk = yak_ht_get(bh, x >> A->pre << YAK_COUNTER_BITS);
+			int a = kh_exist(ah, k);
+			int b = kh_exist(bh, bk);
+			if (a && b) {
+				cab++;
+				ca++;
+				cb++;
+				aob++;
+			} else if (a) {
+				aob++;
+				ca++;
+			}
+		}
+		for (k = 0; k < kh_end(bh); ++k) {
+			if (!kh_exist(bh, k)) continue;
+			uint64_t x = kh_key(bh, k);
+			khint_t ak = yak_ht_get(ah, x >> A->pre << YAK_COUNTER_BITS);
+			int a = kh_exist(ah, ak);
+			int b = kh_exist(bh, k);
+			if (b && !a) {
+				cb++;
+				aob++;
+			}
+		}
+	}
+	so->ca[i] = ca;
+	so->cb[i] = cb;
+	so->cab[i] = cab;
+	so->aob[i] = aob;
+	double j = (double)cab/(double)aob;
+	so->mashd[i] = cab == aob ? 0 : -(1.0/A->k)*log(2*j/(1+j));
+	yak_ch_destroy(A);
+	yak_ch_destroy(B);
+	fprintf(stderr, "[M::%s::%.3f*%.2f] processed %s vs %s -> %lu\n", __func__,
+			yak_realtime(), yak_cputime() / yak_realtime(), 
+			so->filenames[row], so->filenames[col], aob);
+}
+
+#include "ketopt.h"
+int main_setops(int argc, char *argv[])
+{
+	struct setops_dat so;
+	ketopt_t o = KETOPT_INIT;
+	int n_thread = 1;
+	int sz = 1<<10;
+
+	char c;
+	while ((c = ketopt(&o, argc, argv, 1, "n:t:", 0)) >= 0) {
+		if (c == 't') n_thread = atoi(o.arg);
+		if (c == 'n') sz = atoi(o.arg);
+	}
+
+	int ni = argc - o.ind;
+	if (ni < 2 || sz > 1024 || sz < 0) {
+		fprintf(stderr, "USAGE: yak setops [options] <a.yak> <b.yak>...\n");
+		fprintf(stderr, "\n");
+		fprintf(stderr, "OPTIONS:\n");
+		fprintf(stderr, "\t-t INT  Use INT threads\n");
+		fprintf(stderr, "\t-n INT  Use only first INT/1024 tables\n");
+		return 1;
+	}
+	
+	so.filenames = argv + o.ind;
+	so.n_tables = sz;
+
+	size_t n = (ni * (ni-1)) /2;
+	so.ca = calloc(n, 8);
+	so.cb = calloc(n, 8);
+	so.cab = calloc(n, 8);
+	so.aob = calloc(n, 8);
+	//so.hts = calloc(ni, 8);
+	//so.lhts = calloc(ni, 8);
+	so.mashd = calloc(n, sizeof(double));
+
+	kt_for(n_thread, worker_setops, &so, n);
+
+	fprintf(stdout, "A\tB\tn_tbls\tkmers_A\tkmers_B\tkmers_AandB\tkmers_AorB\tmashd\n");
+	for (size_t i = 0; i < n; i++) {
+		size_t row, col;
+		tri2rowcol(i, &row, &col);
+		fprintf(stdout, "%s\t%s\t%d\t%lu\t%lu\t%lu\t%lu\t%lf\n",
+				so.filenames[row], so.filenames[col], sz, so.ca[i], so.cb[i], so.cab[i], so.aob[i], so.mashd[i]);
+	}
+	free(so.ca);
+	free(so.cb);
+	free(so.cab);
+	free(so.aob);
+	free(so.mashd);
+	return EXIT_SUCCESS;
+}
+
