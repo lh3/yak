@@ -91,17 +91,18 @@ int main_cntasm(int argc, char *argv[])
 {
 	yak_ch_t *h = 0;
 	char *fn_in = 0, *fn_out = 0;
-	int c, i, min_cnt = 1, max_cnt = 1, max_out = 0, check_n = 10;
+	int c, i, min_cnt = 1, max_cnt = 1, max_out = 0, check_n = 10, pre_resize = 0;
 	yak_copt_t opt;
 	ketopt_t o = KETOPT_INIT;
 	yak_copt_init(&opt);
 	opt.chunk_size = mm_parse_num("1.9g");
-	while ((c = ketopt(&o, argc, argv, 1, "k:p:K:t:i:o:c:x:e:s:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "k:p:K:t:i:o:c:x:e:s:r", 0)) >= 0) {
 		if (c == 'k') opt.k = atoi(o.arg);
 		else if (c == 'c') min_cnt = atoi(o.arg);
 		else if (c == 'x') max_cnt = atoi(o.arg);
 		else if (c == 'e') max_out = atoi(o.arg);
 		else if (c == 's') check_n = atoi(o.arg);
+		else if (c == 'r') pre_resize = 1;
 		else if (c == 'p') opt.pre = atoi(o.arg);
 		else if (c == 'K') opt.chunk_size = mm_parse_num(o.arg);
 		else if (c == 't') opt.n_thread = atoi(o.arg);
@@ -115,6 +116,7 @@ int main_cntasm(int argc, char *argv[])
 		fprintf(stderr, "  -c INT     min count [%d]\n", min_cnt);
 		fprintf(stderr, "  -x INT     max count [%d]\n", max_cnt);
 		fprintf(stderr, "  -p INT     prefix length [%d]\n", opt.pre);
+		fprintf(stderr, "  -r         resize before merging; use if merging is slow\n");
 		fprintf(stderr, "  -t INT     number of worker threads [%d]\n", opt.n_thread);
 		fprintf(stderr, "  -e INT     exclude a k-mer if absent from INT samples [%d]\n", max_out);
 		fprintf(stderr, "  -s INT     shrink the hash table every INT samples [%d]\n", check_n);
@@ -145,7 +147,7 @@ int main_cntasm(int argc, char *argv[])
 			yak_ch_shrink(h, min_cnt, max_cnt, opt.n_thread);
 			yak_ch_setcnt(h, 1, opt.n_thread);
 		} else {
-			yak_ch_merge(h, h1, min_cnt, max_cnt, opt.n_thread); // h1 is destroyed in this call
+			yak_ch_merge(h, h1, min_cnt, max_cnt, opt.n_thread, pre_resize); // h1 is destroyed in this call
 		}
 		if (i == argc - 1 || (i - o.ind + 1 > max_out && (i - o.ind + 1) % check_n == 0))
 			yak_ch_shrink(h, i - o.ind + 1 - max_out, YAK_MAX_COUNT, opt.n_thread);
