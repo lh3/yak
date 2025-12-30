@@ -250,8 +250,11 @@ static void worker_merge_add(void *data, long i, int tid)
 	yak_ch_t *h0 = a->h0, *h1 = a->h1;
 	yak_ht_t *g0 = h0->h[i].h, *g1 = h1->h[i].h;
 	//fprintf(stderr, "X\t%ld - h1:%u,%u => h0:%u,%u\n", i, kh_size(g1), kh_end(g1), kh_size(g0), kh_end(g0));
-	if (a->pre_resize)
-		yak_ht_resize(g0, (kh_size(g0) + kh_size(g1)) * 4 / 3 + 1);
+	if (a->pre_resize) {
+		uint32_t new_size = (kh_size(g0) + kh_size(g1)) * 4 / 3 + 1;
+		if (new_size > kh_capacity(g0))
+			yak_ht_resize(g0, new_size);
+	}
 	for (k = 0; k < kh_end(g1); ++k) {
 		if (kh_exist(g1, k)) {
 			uint64_t x = kh_key(g1, k);
