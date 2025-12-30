@@ -249,21 +249,22 @@ static void worker_merge_add(void *data, long i, int tid)
 	merge_aux_t *a = (merge_aux_t*)data;
 	yak_ch_t *h0 = a->h0, *h1 = a->h1;
 	yak_ht_t *g0 = h0->h[i].h, *g1 = h1->h[i].h;
+	//fprintf(stderr, "X\t%ld - h1:%u,%u => h0:%u,%u\n", i, kh_size(g1), kh_end(g1), kh_size(g0), kh_end(g0));
 	for (k = 0; k < kh_end(g1); ++k) {
 		if (kh_exist(g1, k)) {
-			int absent, c;
-			c = (kh_key(g1, k) & YAK_MAX_COUNT);
+			uint64_t x = kh_key(g1, k);
+			int absent, c = x & YAK_MAX_COUNT;
 			if (c >= a->min && c <= a->max) {
-				l = yak_ht_put(g0, kh_key(g1, k), &absent);
-				if (absent)
-					kh_key(g0, l) = kh_key(g0, l) >> YAK_COUNTER_BITS << YAK_COUNTER_BITS | 1;
-				else if ((kh_key(g0, l) & YAK_MAX_COUNT) < YAK_MAX_COUNT)
+				x = x >> YAK_COUNTER_BITS << YAK_COUNTER_BITS;
+				l = yak_ht_put(g0, x, &absent);
+				if ((kh_key(g0, l) & YAK_MAX_COUNT) < YAK_MAX_COUNT)
 					++kh_key(g0, l);
 			}
 		}
 	}
 	yak_ht_destroy(g1);
 	if (h1->h[i].b) yak_bf_destroy(h1->h[i].b);
+	//fprintf(stderr, "Y\t%ld - h0:%u,%u\n", i, kh_size(g0), kh_end(g0));
 }
 
 void yak_ch_merge(yak_ch_t *h0, yak_ch_t *h1, int min, int max, int n_thread) // h1 merged into h0; h1 is destroyed afterwards
